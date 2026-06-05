@@ -1,0 +1,7 @@
+//
+// TrainingContentPlayer.rc2 - Visual Studio에서 직접 편집하지 않는 리소스
+//
+
+#ifdef APSTUDIO_INVOKED
+#error 이 파일은 Microsoft Visual C++에서 편집할 수 없습니다.
+#endif // APSTUDIO_INVOKED

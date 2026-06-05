@@ -1,0 +1,19 @@
+{
+  "CourseName": "Drone Operation",
+  "Lessons": [
+    {
+      "Title": "Drone Basics",
+      "Description": "Drone Operation Basics\n\n드론의 기본 구조, 비행 원리, 안전 수칙을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\DroneBasics.pdf",
+      "ImageFile": "Images\\DroneBasics.png"
+    },
+    {
+      "Title": "Flight Control",
+      "Description": "Drone Flight Control\n\n드론 비행 제어 방법과 조종 기법을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\FlightControl.pdf",
+      "ImageFile": "Images\\FlightControl.png"
+    }
+  ]
+}

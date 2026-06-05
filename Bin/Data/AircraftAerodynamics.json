@@ -1,0 +1,68 @@
+{
+  "CourseName": "Aircraft Aerodynamics",
+  "Lessons": [
+    {
+      "Title": "Introduction",
+      "Description": "Aircraft Aerodynamics Overview\n\n항공역학은 공기와 항공기 표면 사이의 상호작용을 연구하는 학문입니다.\n\n비행 성능, 안정성, 연료 효율을 이해하기 위한 핵심 기초 과정입니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=p4VHMsIuPmk",
+      "PdfFile": "Pdf\\Intro.pdf",
+      "ImageFile": "Images\\AeroIntro.png"
+    },
+    {
+      "Title": "Four Forces of Flight",
+      "Description": "Four Forces of Flight\n\n항공기 비행에는 양력(Lift), 중력(Weight), 추력(Thrust), 항력(Drag) 네 가지 힘이 작용합니다.\n\n이 네 힘의 균형이 비행 상태를 결정합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=5ltjFEei3AI",
+      "PdfFile": "Pdf\\AeroFourForces.pdf",
+      "ImageFile": "Images\\AeroFourForces.png"
+    },
+    {
+      "Title": "Bernoulli Principle",
+      "Description": "Bernoulli Principle\n\n유체의 속도가 빨라지면 압력이 낮아진다는 베르누이 원리는 양력 발생을 설명하는 기본 개념입니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=DW4rItB20h4",
+      "PdfFile": "Pdf\\AeroBernoulli.pdf",
+      "ImageFile": "Images\\AeroBernoulli.png"
+    },
+    {
+      "Title": "Lift and Drag",
+      "Description": "Lift and Drag\n\n양력은 항공기를 위로 띄우는 힘, 항력은 진행 방향과 반대로 작용하는 힘입니다.\n\n에어포일 형상과 받음각에 따라 크기가 달라집니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=E3i_XHlVCeU",
+      "PdfFile": "Pdf\\AeroLiftDrag.pdf",
+      "ImageFile": "Images\\AeroLiftDrag.png"
+    },
+    {
+      "Title": "Angle of Attack",
+      "Description": "Angle of Attack\n\n받음각은 날개 chord line과 상대 기류 사이의 각도입니다.\n\n양력과 항력, 그리고 실속 특성에 직접적인 영향을 줍니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=qF9E3eOibNI",
+      "PdfFile": "Pdf\\AeroAngleOfAttack.pdf",
+      "ImageFile": "Images\\AeroAngleOfAttack.png"
+    },
+    {
+      "Title": "Stall",
+      "Description": "Aerodynamic Stall\n\n임계 받음각을 초과하면 날개 상면 기류가 분리되어 급격한 양력 손실(실속)이 발생합니다.\n\n실속 인식과 회복 절차는 비행 안전의 핵심입니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=M8scVzLX9l8",
+      "PdfFile": "Pdf\\AeroStall.pdf",
+      "ImageFile": "Images\\AeroStall.png"
+    },
+    {
+      "Title": "Airfoil",
+      "Description": "Airfoil Design\n\n에어포일 단면 형상은 양력 곡선, 항력 특성, 실속 여유를 결정합니다.\n\n대칭·비대칭 에어포일의 용도와 특성을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=e0l31p6RIaY",
+      "PdfFile": "Pdf\\AeroAirfoil.pdf",
+      "ImageFile": "Images\\AeroAirfoil.png"
+    },
+    {
+      "Title": "Stability and Control",
+      "Description": "Stability and Control\n\n항공기의 종방향·횡방향·방향 안정성과 조종면의 역할을 학습합니다.\n\n안정적인 비행을 위한 기본 개념을 이해합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=EzvL7_G9XEY",
+      "PdfFile": "Pdf\\FlightControl.pdf",
+      "ImageFile": "Images\\AeroStability.png"
+    },
+    {
+      "Title": "Quiz",
+      "Description": "Aerodynamics Quiz\n\n항공역학 학습 내용을 확인하는 퀴즈입니다. (Version 2에서 퀴즈 기능이 추가될 예정입니다.)",
+      "YoutubeUrl": "",
+      "PdfFile": "Pdf\\Quiz.pdf",
+      "ImageFile": "Images\\AeroQuiz.png"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "CourseName": "Aircraft Electrical System",
+  "Lessons": [
+    {
+      "Title": "Introduction",
+      "Description": "Aircraft Electrical System Overview\n\n항공기 전기 시스템의 기본 구조와 전원 공급 방식을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\ElectricIntro.pdf",
+      "ImageFile": "Images\\ElectricIntro.png"
+    },
+    {
+      "Title": "Generator",
+      "Description": "Aircraft Generator\n\n항공기 발전기의 종류와 작동 원리를 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\Generator.pdf",
+      "ImageFile": "Images\\Generator.png"
+    },
+    {
+      "Title": "Battery",
+      "Description": "Aircraft Battery System\n\n비상 전원 및 지상 작업 시 사용되는 배터리 시스템을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\Battery.pdf",
+      "ImageFile": "Images\\Battery.png"
+    }
+  ]
+}

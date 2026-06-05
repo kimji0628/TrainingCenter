@@ -1,0 +1,61 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+x64/
+x86/
+[Dd]ebug/
+[Rr]elease/
+ipch/
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+
+# Build artifacts
+*.obj
+*.pch
+*.ipch
+*.ilk
+*.pdb
+*.idb
+*.tlog
+*.log
+*.recipe
+*.iobj
+*.ipdb
+*.res
+*.Build.CppClean.log
+*.exe.recipe
+*.lastbuildstate
+Cl.items.tlog
+
+# Executables and libs (build from source)
+Bin/TrainingContentPlayer.exe
+Bin/TrainingContentPlayer.pdb
+Bin/TrainingContentPlayer.lib
+Bin/*.ilk
+
+# WebView2 runtime cache
+*.WebView2/
+
+# Python
+__pycache__/
+*.pyc
+
+# Office temp files
+~$*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Cursor / IDE
+.cursor/
+agent-transcripts/
+assets/

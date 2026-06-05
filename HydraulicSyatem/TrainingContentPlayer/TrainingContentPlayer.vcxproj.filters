@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{A1000001-0000-0000-0000-000000000001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UI">
+      <UniqueIdentifier>{A1000002-0000-0000-0000-000000000002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Util">
+      <UniqueIdentifier>{A1000003-0000-0000-0000-000000000003}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="framework.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="pch.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="targetver.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Resource.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="TrainingContentPlayer.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="TrainingLesson.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="TrainingCourse.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="TrainingManager.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="TrainingDlg.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="ImageViewDlg.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="Util.h"><Filter>Util</Filter></ClInclude>
+    <ClInclude Include="VideoViewDlg.h"><Filter>UI</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="TrainingContentPlayer.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="TrainingLesson.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="TrainingCourse.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="TrainingManager.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="TrainingDlg.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="ImageViewDlg.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="Util.cpp"><Filter>Util</Filter></ClCompile>
+    <ClCompile Include="VideoViewDlg.cpp"><Filter>UI</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TrainingContentPlayer.rc"><Filter>Resource Files</Filter></ResourceCompile>
+    <None Include="res\TrainingContentPlayer.rc2"><Filter>Resource Files</Filter></None>
+  </ItemGroup>
+</Project>

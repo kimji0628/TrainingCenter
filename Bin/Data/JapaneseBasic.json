@@ -1,0 +1,26 @@
+{
+  "CourseName": "Japanese Language",
+  "Lessons": [
+    {
+      "Title": "Hiragana",
+      "Description": "ひらがな (Hiragana)\n\n일본어 히라가나 문자를 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\Hiragana.pdf",
+      "ImageFile": "Images\\Hiragana.png"
+    },
+    {
+      "Title": "Katakana",
+      "Description": "カタカナ (Katakana)\n\n일본어 가타카나 문자를 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\Katakana.pdf",
+      "ImageFile": "Images\\Katakana.png"
+    },
+    {
+      "Title": "Basic Greetings",
+      "Description": "基本の挨拶 (Basic Greetings)\n\n일본어 기본 인사 표현을 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "PdfFile": "Pdf\\Greetings.pdf",
+      "ImageFile": "Images\\Greetings.png"
+    }
+  ]
+}

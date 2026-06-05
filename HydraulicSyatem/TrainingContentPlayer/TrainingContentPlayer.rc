@@ -1,0 +1,131 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// ?????(??????) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_KOR)
+LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
+#pragma code_page(949)
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "#include ""res\\TrainingContentPlayer.rc2""\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_TRAININGCONTENTPLAYER_DIALOG DIALOGEX 0, 0, 900, 600
+STYLE DS_SETFONT | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_THICKFRAME
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "Training Content Player"
+FONT 9, "Malgun Gothic", 0, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_TREE_COURSE,"SysTreeView32",TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS | WS_BORDER | WS_HSCROLL | WS_TABSTOP,10,10,250,580
+    LTEXT           "Lesson Title",IDC_STATIC_TITLE,270,10,620,24,SS_CENTERIMAGE
+    EDITTEXT        IDC_EDIT_DESCRIPTION,270,40,620,50,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
+    CONTROL         "",IDC_STATIC_THUMBNAIL,"Static",SS_BLACKFRAME | SS_SUNKEN,270,126,620,464
+    PUSHBUTTON      "Video",IDC_BTN_YOUTUBE,270,98,110,28
+    PUSHBUTTON      "PDF",IDC_BTN_PDF,389,98,110,28
+    PUSHBUTTON      "Image",IDC_BTN_IMAGE,503,98,110,28
+    PUSHBUTTON      "Reload",IDC_BTN_RELOAD,618,98,110,28
+    PUSHBUTTON      "Next",IDC_BTN_NEXT,738,98,110,28
+    PUSHBUTTON      "Prev",IDC_BTN_PREV,852,98,110,28
+    PUSHBUTTON      "Done",IDC_BTN_COMPLETE,780,560,110,28
+END
+
+IDD_VIDEO_VIEW_DIALOG DIALOGEX 0, 0, 773, 475
+STYLE DS_SETFONT | WS_CHILD | WS_CLIPSIBLINGS
+CAPTION ""
+FONT 9, "Malgun Gothic", 0, 0, 0x1
+BEGIN
+END
+
+IDD_IMAGE_VIEW_DIALOG DIALOGEX 0, 0, 400, 300
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Image View"
+FONT 9, "Malgun Gothic", 0, 0, 0x1
+BEGIN
+    CONTROL         "",IDC_STATIC_IMAGE_VIEW,"Static",SS_BLACKFRAME,0,0,400,300
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_TRAININGCONTENTPLAYER_DIALOG, DIALOG
+    BEGIN
+    END
+
+    IDD_VIDEO_VIEW_DIALOG, DIALOG
+    BEGIN
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_TRAININGCONTENTPLAYER_DIALOG AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // ?????(??????) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "res\TrainingContentPlayer.rc2"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

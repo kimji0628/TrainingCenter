@@ -1,0 +1,68 @@
+{
+  "CourseName": "Aircraft Hydraulic System",
+  "Lessons": [
+    {
+      "Title": "Introduction",
+      "Description": "Aircraft Hydraulic System Overview\n\n항공기 유압 시스템은 비행 조종, 착륙장치, 브레이크 등의 작동에 사용되는 핵심 동력 전달 시스템입니다.\n\n이 과정에서는 유압 시스템의 주요 구성 요소와 작동 원리를 학습합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=pepuGqDEaCs",
+      "PdfFile": "Pdf\\Intro.pdf",
+      "ImageFile": "Images\\Intro.png"
+    },
+    {
+      "Title": "Reservoir",
+      "Description": "Hydraulic Fluid Reservoir\n\n유압 유체 저장 탱크로, 시스템에 필요한 유압유를 공급하고 공기를 분리하는 역할을 합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=3Rw66NUp3Co",
+      "PdfFile": "Pdf\\Reservoir.pdf",
+      "ImageFile": "Images\\Reservoir.png"
+    },
+    {
+      "Title": "Hydraulic Pump",
+      "Description": "Hydraulic Pump Operation\n\n유압 펌프는 기계적 에너지를 유압 에너지로 변환하여 시스템에 압력을 공급합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=hFMhEAGqozk",
+      "PdfFile": "Pdf\\Pump.pdf",
+      "ImageFile": "Images\\Pump.png"
+    },
+    {
+      "Title": "Filter",
+      "Description": "Hydraulic Filter\n\n유압유 내 이물질을 제거하여 시스템 구성 요소를 보호합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=4UAWh_8glcM",
+      "PdfFile": "Pdf\\Filter.pdf",
+      "ImageFile": "Images\\Filter.png"
+    },
+    {
+      "Title": "Check Valve",
+      "Description": "Check Valve Operation\n\n유체가 한 방향으로만 흐르도록 하여 역류를 방지합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=2UYktuZuhr4",
+      "PdfFile": "Pdf\\CheckValve.pdf",
+      "ImageFile": "Images\\CheckValve.png"
+    },
+    {
+      "Title": "Accumulator",
+      "Description": "Hydraulic Accumulator\n\n압력을 저장하여 순간적인 유량 수요에 대응하고 펌프 부하를 줄입니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=bO5cOJbWdJ0",
+      "PdfFile": "Pdf\\Accumulator.pdf",
+      "ImageFile": "Images\\Accumulator.png"
+    },
+    {
+      "Title": "Selector Valve",
+      "Description": "Selector Valve\n\n유압 유체의 흐름 방향을 제어하여 작동기에 동력을 전달합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=bO5cOJbWdJ0",
+      "PdfFile": "Pdf\\SelectorValve.pdf",
+      "ImageFile": "Images\\SelectorValve.png"
+    },
+    {
+      "Title": "Actuator",
+      "Description": "Hydraulic Actuator\n\n유압 에너지를 기계적 선형 또는 회전 운동으로 변환합니다.",
+      "YoutubeUrl": "https://www.youtube.com/watch?v=bO5cOJbWdJ0",
+      "PdfFile": "Pdf\\Actuator.pdf",
+      "ImageFile": "Images\\Actuator.png"
+    },
+    {
+      "Title": "Quiz",
+      "Description": "Hydraulic System Quiz\n\n학습한 내용을 확인하는 퀴즈입니다. (Version 2에서 퀴즈 기능이 추가될 예정입니다.)",
+      "YoutubeUrl": "",
+      "PdfFile": "Pdf\\Quiz.pdf",
+      "ImageFile": "Images\\Quiz.png"
+    }
+  ]
+}
