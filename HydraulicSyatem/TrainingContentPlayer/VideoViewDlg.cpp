@@ -452,6 +452,10 @@ void CVideoViewDlg::NavigateToUrl(const CStringW& strUrl)
 void CVideoViewDlg::HidePlayer()
 {
     StopAndBlank();
+
+    if (m_spWebViewController)
+        m_spWebViewController->put_IsVisible(FALSE);
+
     ShowWindow(SW_HIDE);
 }
 

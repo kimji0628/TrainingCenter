@@ -36,8 +36,14 @@ namespace TrainingUtil
     // Pdf folder path (Bin\\Pdf\\)
     CStringW GetPdfFolder();
 
-    // Find all PDF files in Pdf folder (sorted by file name)
+    // Find all PDF files in Pdf folder and subfolders (sorted by relative path)
     void FindPdfFiles(const CStringW& strPdfFolder, CStringArray& arrFiles);
+
+    // Images folder path (Bin\\Images\\)
+    CStringW GetImageFolder();
+
+    // Find all image files in Images folder and subfolders (sorted by relative path)
+    void FindImageFiles(const CStringW& strImageFolder, CStringArray& arrFiles);
 
     // Apply Korean-compatible font to a control
     void ApplyKoreanFont(CWnd* pWnd, int nPointSize = 90);

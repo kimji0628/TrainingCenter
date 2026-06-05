@@ -257,48 +257,148 @@ CStringW TrainingUtil::GetPdfFolder()
     return GetAppDirectory() + L"Pdf\\";
 }
 
+namespace
+{
+    CStringW NormalizeFolderPath(const CStringW& strFolder)
+    {
+        CStringW strPath = strFolder;
+        if (!strPath.IsEmpty() && strPath[strPath.GetLength() - 1] != L'\\')
+            strPath += L'\\';
+        return strPath;
+    }
+
+    CStringW GetRelativePathFromRoot(const CStringW& strRootFolder, const CStringW& strFullPath)
+    {
+        CStringW strRoot = NormalizeFolderPath(strRootFolder);
+        if (strFullPath.GetLength() >= strRoot.GetLength() &&
+            _wcsnicmp(strFullPath, strRoot, strRoot.GetLength()) == 0)
+        {
+            return strFullPath.Mid(strRoot.GetLength());
+        }
+
+        int nPos = strFullPath.ReverseFind(L'\\');
+        return (nPos >= 0) ? strFullPath.Mid(nPos + 1) : strFullPath;
+    }
+
+    void CollectPdfFilesRecursive(const CStringW& strFolder, CStringArray& arrFiles)
+    {
+        CStringW strSearch = NormalizeFolderPath(strFolder);
+
+        CFileFind finder;
+        BOOL bWorking = finder.FindFile(strSearch + L"*.pdf");
+        while (bWorking)
+        {
+            bWorking = finder.FindNextFile();
+            if (!finder.IsDots() && !finder.IsDirectory())
+                arrFiles.Add(finder.GetFilePath());
+        }
+        finder.Close();
+
+        bWorking = finder.FindFile(strSearch + L"*");
+        while (bWorking)
+        {
+            bWorking = finder.FindNextFile();
+            if (!finder.IsDots() && finder.IsDirectory())
+                CollectPdfFilesRecursive(finder.GetFilePath(), arrFiles);
+        }
+        finder.Close();
+    }
+
+    void SortFilesByRelativePath(
+        const CStringW& strRootFolder,
+        CStringArray& arrFiles)
+    {
+        if (arrFiles.GetSize() <= 1)
+            return;
+
+        for (int i = 0; i < arrFiles.GetSize() - 1; ++i)
+        {
+            for (int j = i + 1; j < arrFiles.GetSize(); ++j)
+            {
+                CStringW strPathI = GetRelativePathFromRoot(strRootFolder, arrFiles[i]);
+                CStringW strPathJ = GetRelativePathFromRoot(strRootFolder, arrFiles[j]);
+
+                if (strPathI.CompareNoCase(strPathJ) > 0)
+                {
+                    CStringW strTemp = arrFiles[i];
+                    arrFiles[i] = arrFiles[j];
+                    arrFiles[j] = strTemp;
+                }
+            }
+        }
+    }
+}
+
 void TrainingUtil::FindPdfFiles(const CStringW& strPdfFolder, CStringArray& arrFiles)
 {
     arrFiles.RemoveAll();
 
-    CStringW strSearch = strPdfFolder;
-    if (strSearch.Right(1) != L"\\")
-        strSearch += L"\\";
-    strSearch += L"*.pdf";
-
-    CFileFind finder;
-    BOOL bWorking = finder.FindFile(strSearch);
-    while (bWorking)
-    {
-        bWorking = finder.FindNextFile();
-        if (!finder.IsDots() && !finder.IsDirectory())
-            arrFiles.Add(finder.GetFilePath());
-    }
-    finder.Close();
-
-    if (arrFiles.GetSize() <= 1)
+    if (GetFileAttributesW(strPdfFolder) == INVALID_FILE_ATTRIBUTES)
         return;
 
-    // Sort by file name (case-insensitive)
-    for (int i = 0; i < arrFiles.GetSize() - 1; ++i)
-    {
-        for (int j = i + 1; j < arrFiles.GetSize(); ++j)
-        {
-            CStringW strNameI = arrFiles[i];
-            CStringW strNameJ = arrFiles[j];
-            int nPosI = strNameI.ReverseFind(L'\\');
-            int nPosJ = strNameJ.ReverseFind(L'\\');
-            if (nPosI >= 0) strNameI = strNameI.Mid(nPosI + 1);
-            if (nPosJ >= 0) strNameJ = strNameJ.Mid(nPosJ + 1);
+    CollectPdfFilesRecursive(strPdfFolder, arrFiles);
+    SortFilesByRelativePath(strPdfFolder, arrFiles);
+}
 
-            if (strNameI.CompareNoCase(strNameJ) > 0)
+namespace
+{
+    BOOL IsImageFileName(const CStringW& strFileName)
+    {
+        int nDot = strFileName.ReverseFind(L'.');
+        if (nDot < 0)
+            return FALSE;
+
+        CStringW strExt = strFileName.Mid(nDot);
+        return strExt.CompareNoCase(L".png") == 0 ||
+            strExt.CompareNoCase(L".jpg") == 0 ||
+            strExt.CompareNoCase(L".jpeg") == 0 ||
+            strExt.CompareNoCase(L".gif") == 0 ||
+            strExt.CompareNoCase(L".bmp") == 0 ||
+            strExt.CompareNoCase(L".webp") == 0;
+    }
+
+    void CollectImageFilesRecursive(const CStringW& strFolder, CStringArray& arrFiles)
+    {
+        CStringW strSearch = NormalizeFolderPath(strFolder);
+
+        CFileFind finder;
+        BOOL bWorking = finder.FindFile(strSearch + L"*.*");
+        while (bWorking)
+        {
+            bWorking = finder.FindNextFile();
+            if (!finder.IsDots() && !finder.IsDirectory() &&
+                IsImageFileName(finder.GetFileName()))
             {
-                CStringW strTemp = arrFiles[i];
-                arrFiles[i] = arrFiles[j];
-                arrFiles[j] = strTemp;
+                arrFiles.Add(finder.GetFilePath());
             }
         }
+        finder.Close();
+
+        bWorking = finder.FindFile(strSearch + L"*");
+        while (bWorking)
+        {
+            bWorking = finder.FindNextFile();
+            if (!finder.IsDots() && finder.IsDirectory())
+                CollectImageFilesRecursive(finder.GetFilePath(), arrFiles);
+        }
+        finder.Close();
     }
+}
+
+CStringW TrainingUtil::GetImageFolder()
+{
+    return GetAppDirectory() + L"Images\\";
+}
+
+void TrainingUtil::FindImageFiles(const CStringW& strImageFolder, CStringArray& arrFiles)
+{
+    arrFiles.RemoveAll();
+
+    if (GetFileAttributesW(strImageFolder) == INVALID_FILE_ATTRIBUTES)
+        return;
+
+    CollectImageFilesRecursive(strImageFolder, arrFiles);
+    SortFilesByRelativePath(strImageFolder, arrFiles);
 }
 
 void TrainingUtil::FindJsonFiles(const CStringW& strDataFolder, CStringArray& arrFiles)

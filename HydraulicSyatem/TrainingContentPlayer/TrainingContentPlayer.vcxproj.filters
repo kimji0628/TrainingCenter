@@ -30,6 +30,7 @@
     <ClInclude Include="TrainingCourse.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="TrainingManager.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="TrainingDlg.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="ImageViewCtrl.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="ImageViewDlg.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="Util.h"><Filter>Util</Filter></ClInclude>
     <ClInclude Include="VideoViewDlg.h"><Filter>UI</Filter></ClInclude>
@@ -41,6 +42,7 @@
     <ClCompile Include="TrainingCourse.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="TrainingManager.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="TrainingDlg.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="ImageViewCtrl.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="ImageViewDlg.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="Util.cpp"><Filter>Util</Filter></ClCompile>
     <ClCompile Include="VideoViewDlg.cpp"><Filter>UI</Filter></ClCompile>
@@ -48,5 +50,7 @@
   <ItemGroup>
     <ResourceCompile Include="TrainingContentPlayer.rc"><Filter>Resource Files</Filter></ResourceCompile>
     <None Include="res\TrainingContentPlayer.rc2"><Filter>Resource Files</Filter></None>
+    <Image Include="res\TrainingContentPlayer.ico"><Filter>Resource Files</Filter></Image>
+    <None Include="res\TrainingContentPlayer.png"><Filter>Resource Files</Filter></None>
   </ItemGroup>
 </Project>

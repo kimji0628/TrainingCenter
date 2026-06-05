@@ -5,3 +5,5 @@
 #ifdef APSTUDIO_INVOKED
 #error 이 파일은 Microsoft Visual C++에서 편집할 수 없습니다.
 #endif // APSTUDIO_INVOKED
+
+IDR_MAINFRAME           ICON                    "res\\TrainingContentPlayer.ico"

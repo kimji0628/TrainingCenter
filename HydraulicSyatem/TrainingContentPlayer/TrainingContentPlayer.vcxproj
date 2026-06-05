@@ -16,6 +16,7 @@
     <Keyword>MFCProj</Keyword>
     <RootNamespace>TrainingContentPlayer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ApplicationIcon>res\TrainingContentPlayer.ico</ApplicationIcon>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -119,6 +120,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="ImageViewCtrl.h" />
     <ClInclude Include="ImageViewDlg.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -132,6 +134,7 @@
     <ClInclude Include="VideoViewDlg.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ImageViewCtrl.cpp" />
     <ClCompile Include="ImageViewDlg.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -147,6 +150,10 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TrainingContentPlayer.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\TrainingContentPlayer.ico" />
+    <None Include="res\TrainingContentPlayer.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\Bin\Data\AircraftAerodynamics.json" />

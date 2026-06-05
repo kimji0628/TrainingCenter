@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "TrainingDlg.h"
-#include "ImageViewDlg.h"
 #include "Util.h"
 
 // Tree 아이템 데이터: 상위 16비트 = 코스 인덱스, 하위 16비트 = 레슨 인덱스 (0xFFFF = 코스 노드)
@@ -9,9 +8,89 @@
 #define GET_LESSON_INDEX(data)          (static_cast<int>((data) & 0xFFFF))
 #define COURSE_NODE_LESSON_INDEX        0xFFFF
 #define PDF_TREE_COURSE_MARKER          0xFFFE
+#define PDF_TREE_FOLDER_MARKER          0xFFFD
 
 #define MAKE_PDF_TREE_DATA(index)       ((static_cast<DWORD_PTR>(PDF_TREE_COURSE_MARKER) << 16) | static_cast<DWORD_PTR>(index))
+#define MAKE_PDF_FOLDER_DATA()          ((static_cast<DWORD_PTR>(PDF_TREE_FOLDER_MARKER) << 16) | static_cast<DWORD_PTR>(0xFFFF))
 #define IS_PDF_TREE_ITEM(data)          (GET_COURSE_INDEX(data) == PDF_TREE_COURSE_MARKER)
+#define IMAGE_TREE_FILE_MARKER          0xFFFC
+#define IMAGE_TREE_FOLDER_MARKER        0xFFFB
+
+#define MAKE_IMAGE_TREE_DATA(index)     ((static_cast<DWORD_PTR>(IMAGE_TREE_FILE_MARKER) << 16) | static_cast<DWORD_PTR>(index))
+#define MAKE_IMAGE_FOLDER_DATA()        ((static_cast<DWORD_PTR>(IMAGE_TREE_FOLDER_MARKER) << 16) | static_cast<DWORD_PTR>(0xFFFF))
+#define IS_IMAGE_TREE_ITEM(data)        (GET_COURSE_INDEX(data) == IMAGE_TREE_FILE_MARKER)
+#define IS_IMAGE_FOLDER_ITEM(data)      (GET_COURSE_INDEX(data) == IMAGE_TREE_FOLDER_MARKER)
+
+namespace
+{
+    CStringW NormalizeMediaRootPath(const CStringW& strFolder)
+    {
+        CStringW strPath = strFolder;
+        if (!strPath.IsEmpty() && strPath[strPath.GetLength() - 1] != L'\\')
+            strPath += L'\\';
+        return strPath;
+    }
+
+    CStringW GetMediaRelativePath(const CStringW& strRootFolder, const CStringW& strFullPath)
+    {
+        CStringW strRoot = NormalizeMediaRootPath(strRootFolder);
+        if (strFullPath.GetLength() >= strRoot.GetLength() &&
+            _wcsnicmp(strFullPath, strRoot, strRoot.GetLength()) == 0)
+        {
+            return strFullPath.Mid(strRoot.GetLength());
+        }
+
+        int nPos = strFullPath.ReverseFind(L'\\');
+        return (nPos >= 0) ? strFullPath.Mid(nPos + 1) : strFullPath;
+    }
+
+    HTREEITEM FindOrCreateMediaFolderNode(
+        CTreeCtrl& tree,
+        CStringArray& arrFolderKeys,
+        CArray<HTREEITEM>& arrFolderItems,
+        const CStringW& strFolderKey,
+        const CStringW& strFolderName,
+        HTREEITEM hParent,
+        DWORD_PTR dwFolderData)
+    {
+        for (int i = 0; i < arrFolderKeys.GetSize(); ++i)
+        {
+            if (arrFolderKeys[i].CompareNoCase(strFolderKey) == 0)
+                return arrFolderItems[i];
+        }
+
+        HTREEITEM hFolder = tree.InsertItem(strFolderName, hParent, TVI_LAST);
+        tree.SetItemData(hFolder, dwFolderData);
+        arrFolderKeys.Add(strFolderKey);
+        arrFolderItems.Add(hFolder);
+        tree.Expand(hFolder, TVE_EXPAND);
+        return hFolder;
+    }
+
+    HTREEITEM FindImageTreeItemRecursive(CTreeCtrl& tree, HTREEITEM hItem, int nImageIndex)
+    {
+        if (hItem == nullptr)
+            return nullptr;
+
+        DWORD_PTR dwData = tree.GetItemData(hItem);
+        if (IS_IMAGE_TREE_ITEM(dwData) &&
+            static_cast<int>(GET_LESSON_INDEX(dwData)) == nImageIndex)
+        {
+            return hItem;
+        }
+
+        for (HTREEITEM hChild = tree.GetChildItem(hItem);
+            hChild != nullptr;
+            hChild = tree.GetNextSiblingItem(hChild))
+        {
+            HTREEITEM hFound = FindImageTreeItemRecursive(tree, hChild, nImageIndex);
+            if (hFound != nullptr)
+                return hFound;
+        }
+
+        return nullptr;
+    }
+}
 
 // ============================================================================
 // TrainingDlg.cpp - 메인 교육 콘텐츠 플레이어 다이얼로그 구현
@@ -23,6 +102,7 @@ CTrainingDlg::CTrainingDlg(CWnd* pParent)
     , m_nCurrentLessonIndex(-1)
     , m_bControlsReady(FALSE)
     , m_bPdfListMode(FALSE)
+    , m_bImageListMode(FALSE)
     , m_bSuppressTreeSelChange(FALSE)
 {
 }
@@ -50,6 +130,7 @@ BEGIN_MESSAGE_MAP(CTrainingDlg, CDialogEx)
     ON_WM_CLOSE()
     ON_WM_DESTROY()
     ON_MESSAGE(WM_USER + 100, &CTrainingDlg::OnEnsureVideoPlayer)
+    ON_MESSAGE(WM_IMAGE_VIEW_ITEM_SELECTED, &CTrainingDlg::OnImageViewItemSelected)
 END_MESSAGE_MAP()
 
 void CTrainingDlg::SetupKoreanUI()
@@ -143,14 +224,26 @@ BOOL CTrainingDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
 
-    SetIcon(LoadIcon(nullptr, IDI_APPLICATION), TRUE);
-    SetIcon(LoadIcon(nullptr, IDI_APPLICATION), FALSE);
+    SetIcon(AfxGetApp()->LoadIcon(IDR_MAINFRAME), TRUE);
+    SetIcon(AfxGetApp()->LoadIcon(IDR_MAINFRAME), FALSE);
 
-    SetWindowText(L"Training Content Player");
+    SetWindowText(L"스마트 강의 플레이어");
     SetupKoreanUI();
 
     // Pre-create WebView2 player after the modal message loop starts
     PostMessage(WM_USER + 100, 0, 0);
+
+    if (!m_imageView.CreateOverPlaceholder(this, &m_staticThumbnail, IDC_IMAGE_VIEW_HOST))
+    {
+        AfxMessageBox(
+            L"이미지 보기 영역 초기화에 실패했습니다.",
+            MB_OK | MB_ICONERROR);
+        EndDialog(IDCANCEL);
+        return FALSE;
+    }
+
+    RefreshPdfFileList();
+    RefreshImageFileList();
 
     if (!LoadCourseData())
     {
@@ -170,8 +263,8 @@ BOOL CTrainingDlg::OnInitDialog()
         }
     }
 
-    RefreshPdfFileList();
     UpdateNavigationButtons();
+    UpdateContentButtons();
 
     m_bControlsReady = TRUE;
 
@@ -180,6 +273,20 @@ BOOL CTrainingDlg::OnInitDialog()
     LayoutControls(rcClient.Width(), rcClient.Height());
 
     return TRUE;
+}
+
+BOOL CTrainingDlg::PreTranslateMessage(MSG* pMsg)
+{
+    if (pMsg->message == WM_MOUSEWHEEL &&
+        ::IsWindow(m_imageView.GetSafeHwnd()) &&
+        m_imageView.IsSingleImageMode())
+    {
+        CPoint pt(GET_X_LPARAM(pMsg->lParam), GET_Y_LPARAM(pMsg->lParam));
+        if (m_imageView.HandleMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
+            return TRUE;
+    }
+
+    return CDialogEx::PreTranslateMessage(pMsg);
 }
 
 int CTrainingDlg::GetDescriptionMinHeight() const
@@ -208,7 +315,7 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
     if (!m_treeCourse.GetSafeHwnd() ||
         !m_staticTitle.GetSafeHwnd() ||
         !m_editDescription.GetSafeHwnd() ||
-        !m_staticThumbnail.GetSafeHwnd())
+        !m_imageView.GetSafeHwnd())
     {
         return;
     }
@@ -273,7 +380,7 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
             SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
-    m_staticThumbnail.SetWindowPos(
+    m_imageView.SetWindowPos(
         nullptr,
         nContentLeft,
         nThumbTop,
@@ -281,7 +388,20 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
         nThumbBottom - nThumbTop,
         SWP_NOZORDER | SWP_NOACTIVATE);
 
-    CVideoViewDlg::SyncHostArea(&m_staticThumbnail);
+    CVideoViewDlg::SyncHostArea(&m_imageView);
+}
+
+void CTrainingDlg::BringImageViewToFront()
+{
+    CVideoViewDlg::HideActive();
+
+    if (!::IsWindow(m_imageView.GetSafeHwnd()))
+        return;
+
+    m_imageView.SetWindowPos(
+        &CWnd::wndTop,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
 }
 
 void CTrainingDlg::OnSize(UINT nType, int cx, int cy)
@@ -344,6 +464,10 @@ void CTrainingDlg::BuildPdfTree()
     HTREEITEM hRoot = m_treeCourse.InsertItem(L"PDF 파일 목록", TVI_ROOT, TVI_LAST);
     m_treeCourse.SetItemData(hRoot, MAKE_TREE_DATA(0, COURSE_NODE_LESSON_INDEX));
 
+    CStringW strPdfRoot = NormalizeMediaRootPath(TrainingUtil::GetPdfFolder());
+    CStringArray arrFolderKeys;
+    CArray<HTREEITEM> arrFolderItems;
+
     CStringW strCurrentPdf;
     if (m_nCurrentCourseIndex >= 0 && m_nCurrentLessonIndex >= 0)
     {
@@ -356,11 +480,50 @@ void CTrainingDlg::BuildPdfTree()
     HTREEITEM hSelect = hRoot;
     for (int i = 0; i < m_arrPdfFiles.GetSize(); ++i)
     {
-        CStringW strPath = m_arrPdfFiles[i];
-        int nPos = strPath.ReverseFind(L'\\');
-        CStringW strName = (nPos >= 0) ? strPath.Mid(nPos + 1) : strPath;
+        const CStringW& strPath = m_arrPdfFiles[i];
+        CStringW strRelative = GetMediaRelativePath(strPdfRoot, strPath);
 
-        HTREEITEM hItem = m_treeCourse.InsertItem(strName, hRoot, TVI_LAST);
+        int nSlash = strRelative.ReverseFind(L'\\');
+        CStringW strFileName = (nSlash >= 0) ? strRelative.Mid(nSlash + 1) : strRelative;
+        HTREEITEM hParent = hRoot;
+
+        if (nSlash >= 0)
+        {
+            CStringW strFolderPart = strRelative.Left(nSlash);
+            CStringW strFolderKey;
+            CStringW strFolderRemain = strFolderPart;
+            HTREEITEM hFolderParent = hRoot;
+
+            while (!strFolderRemain.IsEmpty())
+            {
+                int nNextSlash = strFolderRemain.Find(L'\\');
+                CStringW strSegment = (nNextSlash >= 0)
+                    ? strFolderRemain.Left(nNextSlash)
+                    : strFolderRemain;
+
+                if (!strFolderKey.IsEmpty())
+                    strFolderKey += L'\\';
+                strFolderKey += strSegment;
+
+                hFolderParent = FindOrCreateMediaFolderNode(
+                    m_treeCourse,
+                    arrFolderKeys,
+                    arrFolderItems,
+                    strFolderKey,
+                    strSegment,
+                    hFolderParent,
+                    MAKE_PDF_FOLDER_DATA());
+
+                if (nNextSlash < 0)
+                    break;
+
+                strFolderRemain = strFolderRemain.Mid(nNextSlash + 1);
+            }
+
+            hParent = hFolderParent;
+        }
+
+        HTREEITEM hItem = m_treeCourse.InsertItem(strFileName, hParent, TVI_LAST);
         m_treeCourse.SetItemData(hItem, MAKE_PDF_TREE_DATA(i));
 
         if (!strCurrentPdf.IsEmpty() && strPath.CompareNoCase(strCurrentPdf) == 0)
@@ -375,12 +538,94 @@ void CTrainingDlg::BuildPdfTree()
     m_bSuppressTreeSelChange = FALSE;
 }
 
+void CTrainingDlg::RefreshImageFileList()
+{
+    m_arrImageFiles.RemoveAll();
+    TrainingUtil::FindImageFiles(TrainingUtil::GetImageFolder(), m_arrImageFiles);
+}
+
+void CTrainingDlg::BuildImageTree()
+{
+    m_treeCourse.DeleteAllItems();
+
+    HTREEITEM hRoot = m_treeCourse.InsertItem(L"이미지 파일 목록", TVI_ROOT, TVI_LAST);
+    m_treeCourse.SetItemData(hRoot, MAKE_TREE_DATA(0, COURSE_NODE_LESSON_INDEX));
+
+    CStringW strImageRoot = NormalizeMediaRootPath(TrainingUtil::GetImageFolder());
+    CStringArray arrFolderKeys;
+    CArray<HTREEITEM> arrFolderItems;
+
+    for (int i = 0; i < m_arrImageFiles.GetSize(); ++i)
+    {
+        const CStringW& strPath = m_arrImageFiles[i];
+        CStringW strRelative = GetMediaRelativePath(strImageRoot, strPath);
+
+        int nSlash = strRelative.ReverseFind(L'\\');
+        CStringW strFileName = (nSlash >= 0) ? strRelative.Mid(nSlash + 1) : strRelative;
+        HTREEITEM hParent = hRoot;
+
+        if (nSlash >= 0)
+        {
+            CStringW strFolderPart = strRelative.Left(nSlash);
+            CStringW strFolderKey;
+            CStringW strFolderRemain = strFolderPart;
+            HTREEITEM hFolderParent = hRoot;
+
+            while (!strFolderRemain.IsEmpty())
+            {
+                int nNextSlash = strFolderRemain.Find(L'\\');
+                CStringW strSegment = (nNextSlash >= 0)
+                    ? strFolderRemain.Left(nNextSlash)
+                    : strFolderRemain;
+
+                if (!strFolderKey.IsEmpty())
+                    strFolderKey += L'\\';
+                strFolderKey += strSegment;
+
+                hFolderParent = FindOrCreateMediaFolderNode(
+                    m_treeCourse,
+                    arrFolderKeys,
+                    arrFolderItems,
+                    strFolderKey,
+                    strSegment,
+                    hFolderParent,
+                    MAKE_IMAGE_FOLDER_DATA());
+
+                if (nNextSlash < 0)
+                    break;
+
+                strFolderRemain = strFolderRemain.Mid(nNextSlash + 1);
+            }
+
+            hParent = hFolderParent;
+        }
+
+        HTREEITEM hItem = m_treeCourse.InsertItem(strFileName, hParent, TVI_LAST);
+        m_treeCourse.SetItemData(hItem, MAKE_IMAGE_TREE_DATA(i));
+    }
+
+    m_treeCourse.Expand(hRoot, TVE_EXPAND);
+
+    m_bSuppressTreeSelChange = TRUE;
+    m_treeCourse.SelectItem(hRoot);
+    m_treeCourse.EnsureVisible(hRoot);
+    m_bSuppressTreeSelChange = FALSE;
+
+    CArray<int> arrAllImages;
+    for (int i = 0; i < m_arrImageFiles.GetSize(); ++i)
+        arrAllImages.Add(i);
+
+    BringImageViewToFront();
+    LoadImageGrid(arrAllImages);
+}
+
 void CTrainingDlg::ShowCourseTree()
 {
-    if (!m_bPdfListMode)
+    if (!m_bPdfListMode && !m_bImageListMode)
         return;
 
     m_bPdfListMode = FALSE;
+    m_bImageListMode = FALSE;
     BuildCourseTree();
 
     if (m_nCurrentCourseIndex >= 0 && m_nCurrentLessonIndex >= 0)
@@ -408,8 +653,34 @@ void CTrainingDlg::ShowCourseTree()
 
 void CTrainingDlg::EnsureCourseTree()
 {
-    if (m_bPdfListMode)
+    if (m_bPdfListMode || m_bImageListMode)
         ShowCourseTree();
+}
+
+void CTrainingDlg::ShowImageTree()
+{
+    CVideoViewDlg::HideActive();
+    RefreshImageFileList();
+
+    if (m_arrImageFiles.GetSize() == 0)
+    {
+        AfxMessageBox(
+            L"Images 폴더에 이미지 파일이 없습니다.\n"
+            L"Bin\\Images 폴더에 PNG/JPG 파일을 추가하세요.",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    m_bPdfListMode = FALSE;
+    m_bImageListMode = TRUE;
+    BuildImageTree();
+    BringImageViewToFront();
+
+    m_staticTitle.SetWindowText(L"이미지 보기");
+    m_editDescription.SetWindowText(
+        L"좌측 목록에서 폴더 또는 이미지를 선택하세요.\n\n"
+        L"폴더를 선택하면 해당 폴더의 이미지가 격자로 표시되고,\n"
+        L"이미지를 선택하거나 격자에서 클릭하면 크게 볼 수 있습니다.");
 }
 
 void CTrainingDlg::ShowPdfTree()
@@ -427,12 +698,13 @@ void CTrainingDlg::ShowPdfTree()
     }
 
     m_bPdfListMode = TRUE;
+    m_bImageListMode = FALSE;
     BuildPdfTree();
 
     m_staticTitle.SetWindowText(L"PDF 보기");
     m_editDescription.SetWindowText(
         L"좌측 목록에서 열 PDF 파일을 선택하세요.\n\n"
-        L"Pdf 폴더에 저장된 모든 PDF 파일이 표시됩니다.");
+        L"Pdf 폴더와 하위 폴더에 저장된 모든 PDF 파일이 표시됩니다.");
 }
 
 void CTrainingDlg::OpenPdfByIndex(int nPdfIndex)
@@ -464,8 +736,78 @@ void CTrainingDlg::UpdateContentButtons()
     GetDlgItem(IDC_BTN_YOUTUBE)->EnableWindow(
         bHasLesson && !pLesson->m_strYoutubeUrl.IsEmpty());
     GetDlgItem(IDC_BTN_PDF)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
-    GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(
-        bHasLesson && !pLesson->m_strImageFile.IsEmpty());
+    GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(m_arrImageFiles.GetSize() > 0);
+}
+
+void CTrainingDlg::DisplayImageByIndex(int nImageIndex)
+{
+    if (nImageIndex < 0 || nImageIndex >= m_arrImageFiles.GetSize())
+        return;
+
+    BringImageViewToFront();
+    m_imageView.ShowSingleImage(m_arrImageFiles[nImageIndex]);
+}
+
+void CTrainingDlg::DisplayImagesInFolder(HTREEITEM hFolderItem)
+{
+    CArray<int> arrIndices;
+    if (hFolderItem != nullptr)
+    {
+        for (HTREEITEM hChild = m_treeCourse.GetChildItem(hFolderItem);
+            hChild != nullptr;
+            hChild = m_treeCourse.GetNextSiblingItem(hChild))
+        {
+            DWORD_PTR dwData = m_treeCourse.GetItemData(hChild);
+            if (IS_IMAGE_TREE_ITEM(dwData))
+                arrIndices.Add(static_cast<int>(GET_LESSON_INDEX(dwData)));
+        }
+    }
+
+    LoadImageGrid(arrIndices);
+}
+
+void CTrainingDlg::OnImageTreeItemSelected(HTREEITEM hItem)
+{
+    if (hItem == nullptr)
+        return;
+
+    DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
+    if (IS_IMAGE_TREE_ITEM(dwData))
+        DisplayImageByIndex(static_cast<int>(GET_LESSON_INDEX(dwData)));
+    else
+        DisplayImagesInFolder(hItem);
+}
+
+void CTrainingDlg::SelectImageTreeItemByIndex(int nImageIndex)
+{
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    HTREEITEM hItem = FindImageTreeItemRecursive(m_treeCourse, hRoot, nImageIndex);
+    if (hItem != nullptr)
+    {
+        m_bSuppressTreeSelChange = TRUE;
+        m_treeCourse.SelectItem(hItem);
+        m_treeCourse.EnsureVisible(hItem);
+        m_bSuppressTreeSelChange = FALSE;
+    }
+}
+
+void CTrainingDlg::LoadImageGrid(const CArray<int>& arrImageIndices)
+{
+    const int nCount = static_cast<int>(arrImageIndices.GetSize());
+    if (nCount <= 0)
+    {
+        m_imageView.ClearView();
+        return;
+    }
+
+    if (nCount == 1)
+    {
+        DisplayImageByIndex(arrImageIndices[0]);
+        return;
+    }
+
+    BringImageViewToFront();
+    m_imageView.ShowImageGrid(m_arrImageFiles, arrImageIndices);
 }
 
 void CTrainingDlg::UpdateTreeItemState(int nCourseIndex, int nLessonIndex)
@@ -531,57 +873,31 @@ void CTrainingDlg::ClearLessonDisplay()
 
     m_staticTitle.SetWindowText(L"");
     m_editDescription.SetWindowText(L"");
-
-    CRect rc;
-    m_staticThumbnail.GetClientRect(&rc);
-    CDC* pDC = m_staticThumbnail.GetDC();
-    if (pDC != nullptr)
-    {
-        pDC->FillSolidRect(&rc, GetSysColor(COLOR_3DFACE));
-        m_staticThumbnail.ReleaseDC(pDC);
-    }
+    m_imageView.ClearView();
 
     GetDlgItem(IDC_BTN_YOUTUBE)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_PDF)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
-    GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(FALSE);
+    GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(m_arrImageFiles.GetSize() > 0);
 }
 
 void CTrainingDlg::LoadThumbnail(const CStringW& strImagePath)
 {
-    CRect rc;
-    m_staticThumbnail.GetClientRect(&rc);
-    CDC* pDC = m_staticThumbnail.GetDC();
-    if (pDC == nullptr)
-        return;
+    BringImageViewToFront();
 
-    pDC->FillSolidRect(&rc, GetSysColor(COLOR_3DFACE));
-
-    if (!strImagePath.IsEmpty())
+    if (strImagePath.IsEmpty())
     {
-        CStringW strFullPath = TrainingUtil::ResolveAppPath(strImagePath);
-        CImage image;
-        if (SUCCEEDED(image.Load(strFullPath)))
-        {
-            int nImgW = image.GetWidth();
-            int nImgH = image.GetHeight();
-            int nDstW = rc.Width();
-            int nDstH = rc.Height();
-
-            // 비율 유지하며 썸네일 영역에 맞춤
-            double dScale = min(
-                static_cast<double>(nDstW) / nImgW,
-                static_cast<double>(nDstH) / nImgH);
-            int nDrawW = static_cast<int>(nImgW * dScale);
-            int nDrawH = static_cast<int>(nImgH * dScale);
-            int nOffsetX = (nDstW - nDrawW) / 2;
-            int nOffsetY = (nDstH - nDrawH) / 2;
-
-            image.StretchBlt(pDC->m_hDC, nOffsetX, nOffsetY, nDrawW, nDrawH,
-                0, 0, nImgW, nImgH, SRCCOPY);
-        }
+        m_imageView.ClearView();
+        return;
     }
 
-    m_staticThumbnail.ReleaseDC(pDC);
+    CStringW strFullPath = TrainingUtil::ResolveAppPath(strImagePath);
+    if (GetFileAttributesW(strFullPath) == INVALID_FILE_ATTRIBUTES)
+    {
+        m_imageView.ClearView();
+        return;
+    }
+
+    m_imageView.ShowSingleImage(strFullPath);
 }
 
 BOOL CTrainingDlg::SelectLesson(int nCourseIndex, int nLessonIndex)
@@ -672,12 +988,20 @@ void CTrainingDlg::LaunchUrl(const CStringW& strUrl)
     if (strUrl.IsEmpty())
         return;
 
-    CVideoViewDlg::PlayVideo(this, strUrl, &m_staticThumbnail);
+    CVideoViewDlg::PlayVideo(this, strUrl, &m_imageView);
 }
 
 LRESULT CTrainingDlg::OnEnsureVideoPlayer(WPARAM /*wParam*/, LPARAM /*lParam*/)
 {
-    CVideoViewDlg::EnsureCreated(this, &m_staticThumbnail);
+    CVideoViewDlg::EnsureCreated(this, &m_imageView);
+    return 0;
+}
+
+LRESULT CTrainingDlg::OnImageViewItemSelected(WPARAM wParam, LPARAM /*lParam*/)
+{
+    const int nImageIndex = static_cast<int>(wParam);
+    DisplayImageByIndex(nImageIndex);
+    SelectImageTreeItemByIndex(nImageIndex);
     return 0;
 }
 
@@ -719,7 +1043,9 @@ void CTrainingDlg::OnSelchangedTreeCourse(NMHDR* pNMHDR, LRESULT* pResult)
     {
         DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
 
-        if (m_bPdfListMode)
+        if (m_bImageListMode)
+            OnImageTreeItemSelected(hItem);
+        else if (m_bPdfListMode)
         {
             if (IS_PDF_TREE_ITEM(dwData))
                 OpenPdfByIndex(GET_LESSON_INDEX(dwData));
@@ -754,16 +1080,7 @@ void CTrainingDlg::OnBnClickedBtnPdf()
 
 void CTrainingDlg::OnBnClickedBtnImage()
 {
-    EnsureCourseTree();
-    CVideoViewDlg::HideActive();
-
-    const CTrainingLesson* pLesson = m_Manager.GetLesson(
-        m_nCurrentCourseIndex, m_nCurrentLessonIndex);
-    if (pLesson != nullptr && !pLesson->m_strImageFile.IsEmpty())
-    {
-        CImageViewDlg dlg(pLesson->m_strImageFile, this);
-        dlg.DoModal();
-    }
+    ShowImageTree();
 }
 
 void CTrainingDlg::OnBnClickedBtnNext()
@@ -801,6 +1118,7 @@ void CTrainingDlg::OnBnClickedBtnReload()
     EnsureCourseTree();
     ReloadCourses();
     RefreshPdfFileList();
+    RefreshImageFileList();
     UpdateContentButtons();
 }
 
