@@ -33,6 +33,8 @@
     <ClInclude Include="TrainingDlg.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="ImageViewCtrl.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="ImageViewDlg.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="PdfCoverViewCtrl.h"><Filter>UI</Filter></ClInclude>
+    <ClInclude Include="PdfRenderEngine.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="Util.h"><Filter>Util</Filter></ClInclude>
     <ClInclude Include="VideoViewDlg.h"><Filter>UI</Filter></ClInclude>
   </ItemGroup>
@@ -46,6 +48,8 @@
     <ClCompile Include="TrainingDlg.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="ImageViewCtrl.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="ImageViewDlg.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="PdfCoverViewCtrl.cpp"><Filter>UI</Filter></ClCompile>
+    <ClCompile Include="PdfRenderEngine.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="Util.cpp"><Filter>Util</Filter></ClCompile>
     <ClCompile Include="VideoViewDlg.cpp"><Filter>UI</Filter></ClCompile>
   </ItemGroup>

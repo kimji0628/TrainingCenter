@@ -33,10 +33,13 @@ namespace TrainingUtil
     // Find all JSON files in Data folder
     void FindJsonFiles(const CStringW& strDataFolder, CStringArray& arrFiles);
 
-    // Pdf folder path (Bin\\Pdf\\)
+    // Pdf folder path (exe dir\\PDF\\)
     CStringW GetPdfFolder();
 
-    // Find all PDF files in Pdf folder and subfolders (sorted by relative path)
+    // Create ./PDF when missing
+    BOOL EnsurePdfFolder();
+
+    // Find all PDF files in PDF folder and subfolders (sorted by relative path)
     void FindPdfFiles(const CStringW& strPdfFolder, CStringArray& arrFiles);
 
     // Images folder path (Bin\\Images\\)

@@ -254,7 +254,17 @@ CStringW TrainingUtil::ResolveAppPath(const CStringW& strRelativePath)
 
 CStringW TrainingUtil::GetPdfFolder()
 {
-    return GetAppDirectory() + L"Pdf\\";
+    return GetAppDirectory() + L"PDF\\";
+}
+
+BOOL TrainingUtil::EnsurePdfFolder()
+{
+    CStringW strFolder = GetPdfFolder();
+    DWORD dwAttr = ::GetFileAttributesW(strFolder);
+    if (dwAttr != INVALID_FILE_ATTRIBUTES && (dwAttr & FILE_ATTRIBUTE_DIRECTORY))
+        return TRUE;
+
+    return ::CreateDirectoryW(strFolder, nullptr) != FALSE;
 }
 
 namespace
@@ -280,21 +290,39 @@ namespace
         return (nPos >= 0) ? strFullPath.Mid(nPos + 1) : strFullPath;
     }
 
+    void AddUniqueFilePath(CStringArray& arrFiles, const CStringW& strPath)
+    {
+        for (int i = 0; i < arrFiles.GetSize(); ++i)
+        {
+            if (arrFiles[i].CompareNoCase(strPath) == 0)
+                return;
+        }
+
+        arrFiles.Add(strPath);
+    }
+
     void CollectPdfFilesRecursive(const CStringW& strFolder, CStringArray& arrFiles)
     {
         CStringW strSearch = NormalizeFolderPath(strFolder);
 
-        CFileFind finder;
-        BOOL bWorking = finder.FindFile(strSearch + L"*.pdf");
-        while (bWorking)
+        auto collectPdfPattern = [&](const wchar_t* pszPattern)
         {
-            bWorking = finder.FindNextFile();
-            if (!finder.IsDots() && !finder.IsDirectory())
-                arrFiles.Add(finder.GetFilePath());
-        }
-        finder.Close();
+            CFileFind finder;
+            BOOL bWorking = finder.FindFile(strSearch + pszPattern);
+            while (bWorking)
+            {
+                bWorking = finder.FindNextFile();
+                if (!finder.IsDots() && !finder.IsDirectory())
+                    AddUniqueFilePath(arrFiles, finder.GetFilePath());
+            }
+            finder.Close();
+        };
 
-        bWorking = finder.FindFile(strSearch + L"*");
+        collectPdfPattern(L"*.pdf");
+        collectPdfPattern(L"*.PDF");
+
+        CFileFind finder;
+        BOOL bWorking = finder.FindFile(strSearch + L"*");
         while (bWorking)
         {
             bWorking = finder.FindNextFile();
@@ -333,11 +361,18 @@ void TrainingUtil::FindPdfFiles(const CStringW& strPdfFolder, CStringArray& arrF
 {
     arrFiles.RemoveAll();
 
-    if (GetFileAttributesW(strPdfFolder) == INVALID_FILE_ATTRIBUTES)
+    CStringW strFolder = strPdfFolder;
+    if (strFolder.IsEmpty())
         return;
 
-    CollectPdfFilesRecursive(strPdfFolder, arrFiles);
-    SortFilesByRelativePath(strPdfFolder, arrFiles);
+    if (::GetFileAttributesW(strFolder) == INVALID_FILE_ATTRIBUTES)
+    {
+        if (!::CreateDirectoryW(strFolder, nullptr))
+            return;
+    }
+
+    CollectPdfFilesRecursive(strFolder, arrFiles);
+    SortFilesByRelativePath(strFolder, arrFiles);
 }
 
 namespace

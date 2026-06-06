@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "TrainingDlg.h"
 #include "StartDlg.h"
+#include "PdfRenderEngine.h"
 #include "Util.h"
 
 // Tree 아이템 데이터: 상위 16비트 = 코스 인덱스, 하위 16비트 = 레슨 인덱스 (0xFFFF = 코스 노드)
@@ -14,6 +15,7 @@
 #define MAKE_PDF_TREE_DATA(index)       ((static_cast<DWORD_PTR>(PDF_TREE_COURSE_MARKER) << 16) | static_cast<DWORD_PTR>(index))
 #define MAKE_PDF_FOLDER_DATA()          ((static_cast<DWORD_PTR>(PDF_TREE_FOLDER_MARKER) << 16) | static_cast<DWORD_PTR>(0xFFFF))
 #define IS_PDF_TREE_ITEM(data)          (GET_COURSE_INDEX(data) == PDF_TREE_COURSE_MARKER)
+#define IS_PDF_FOLDER_ITEM(data)        (GET_COURSE_INDEX(data) == PDF_TREE_FOLDER_MARKER)
 #define IMAGE_TREE_FILE_MARKER          0xFFFC
 #define IMAGE_TREE_FOLDER_MARKER        0xFFFB
 
@@ -105,6 +107,7 @@ CTrainingDlg::CTrainingDlg(CWnd* pParent)
     , m_bPdfListMode(FALSE)
     , m_bImageListMode(FALSE)
     , m_bSuppressTreeSelChange(FALSE)
+    , m_nSelectedPdfIndex(-1)
 {
 }
 
@@ -132,6 +135,7 @@ BEGIN_MESSAGE_MAP(CTrainingDlg, CDialogEx)
     ON_WM_DESTROY()
     ON_MESSAGE(WM_USER + 100, &CTrainingDlg::OnEnsureVideoPlayer)
     ON_MESSAGE(WM_IMAGE_VIEW_ITEM_SELECTED, &CTrainingDlg::OnImageViewItemSelected)
+    ON_MESSAGE(WM_PDF_COVER_ITEM_SELECTED, &CTrainingDlg::OnPdfCoverItemSelected)
 END_MESSAGE_MAP()
 
 void CTrainingDlg::SetupKoreanUI()
@@ -242,6 +246,16 @@ BOOL CTrainingDlg::OnInitDialog()
         EndDialog(IDCANCEL);
         return FALSE;
     }
+
+    if (!m_pdfCoverView.CreateOverPlaceholder(this, &m_staticThumbnail, IDC_PDF_COVER_VIEW))
+    {
+        AfxMessageBox(
+            L"PDF 표지 보기 영역 초기화에 실패했습니다.",
+            MB_OK | MB_ICONERROR);
+        EndDialog(IDCANCEL);
+        return FALSE;
+    }
+    m_pdfCoverView.ShowWindow(SW_HIDE);
 
     RefreshPdfFileList();
     RefreshImageFileList();
@@ -392,6 +406,14 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
         nThumbBottom - nThumbTop,
         SWP_NOZORDER | SWP_NOACTIVATE);
 
+    m_pdfCoverView.SetWindowPos(
+        nullptr,
+        nContentLeft,
+        nThumbTop,
+        nContentWidth,
+        nThumbBottom - nThumbTop,
+        SWP_NOZORDER | SWP_NOACTIVATE);
+
     CVideoViewDlg::SyncHostArea(&m_imageView);
 }
 
@@ -399,10 +421,29 @@ void CTrainingDlg::BringImageViewToFront()
 {
     CVideoViewDlg::HideActive();
 
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ShowWindow(SW_HIDE);
+
     if (!::IsWindow(m_imageView.GetSafeHwnd()))
         return;
 
     m_imageView.SetWindowPos(
+        &CWnd::wndTop,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+}
+
+void CTrainingDlg::BringPdfCoverToFront()
+{
+    CVideoViewDlg::HideActive();
+
+    if (::IsWindow(m_imageView.GetSafeHwnd()))
+        m_imageView.ShowWindow(SW_HIDE);
+
+    if (!::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        return;
+
+    m_pdfCoverView.SetWindowPos(
         &CWnd::wndTop,
         0, 0, 0, 0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
@@ -458,6 +499,7 @@ void CTrainingDlg::BuildCourseTree()
 void CTrainingDlg::RefreshPdfFileList()
 {
     m_arrPdfFiles.RemoveAll();
+    TrainingUtil::EnsurePdfFolder();
     TrainingUtil::FindPdfFiles(TrainingUtil::GetPdfFolder(), m_arrPdfFiles);
 }
 
@@ -465,7 +507,7 @@ void CTrainingDlg::BuildPdfTree()
 {
     m_treeCourse.DeleteAllItems();
 
-    HTREEITEM hRoot = m_treeCourse.InsertItem(L"PDF 파일 목록", TVI_ROOT, TVI_LAST);
+    HTREEITEM hRoot = m_treeCourse.InsertItem(L"PDF", TVI_ROOT, TVI_LAST);
     m_treeCourse.SetItemData(hRoot, MAKE_TREE_DATA(0, COURSE_NODE_LESSON_INDEX));
 
     CStringW strPdfRoot = NormalizeMediaRootPath(TrainingUtil::GetPdfFolder());
@@ -630,6 +672,9 @@ void CTrainingDlg::ShowCourseTree()
 
     m_bPdfListMode = FALSE;
     m_bImageListMode = FALSE;
+    m_nSelectedPdfIndex = -1;
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ShowWindow(SW_HIDE);
     BuildCourseTree();
 
     if (m_nCurrentCourseIndex >= 0 && m_nCurrentLessonIndex >= 0)
@@ -677,6 +722,7 @@ void CTrainingDlg::ShowImageTree()
 
     m_bPdfListMode = FALSE;
     m_bImageListMode = TRUE;
+    m_nSelectedPdfIndex = -1;
     BuildImageTree();
     BringImageViewToFront();
 
@@ -695,8 +741,8 @@ void CTrainingDlg::ShowPdfTree()
     if (m_arrPdfFiles.GetSize() == 0)
     {
         AfxMessageBox(
-            L"Pdf 폴더에 PDF 파일이 없습니다.\n"
-            L"Bin\\Pdf 폴더에 PDF 파일을 추가하세요.",
+            L"PDF 폴더에 PDF 파일이 없습니다.\n"
+            L"실행 파일 기준 .\\PDF 폴더에 PDF 파일을 추가하세요.",
             MB_OK | MB_ICONWARNING);
         return;
     }
@@ -705,30 +751,91 @@ void CTrainingDlg::ShowPdfTree()
     m_bImageListMode = FALSE;
     BuildPdfTree();
 
+    BringPdfCoverToFront();
+    m_pdfCoverView.ClearView();
+    m_nSelectedPdfIndex = -1;
+
     m_staticTitle.SetWindowText(L"PDF 보기");
     m_editDescription.SetWindowText(
-        L"좌측 목록에서 열 PDF 파일을 선택하세요.\n\n"
-        L"Pdf 폴더와 하위 폴더에 저장된 모든 PDF 파일이 표시됩니다.");
+        L"좌측 트리에서 폴더를 선택하세요.\n\n"
+        L"오른쪽에는 해당 폴더의 PDF 표지(1페이지)와 파일명이 카드 형태로 표시됩니다.\n"
+        L"표지를 클릭하면 현재 PDF가 선택됩니다.\n"
+        L".\\PDF 폴더와 하위 폴더의 모든 PDF 파일(.pdf, .PDF)이 표시됩니다.");
+
+    HTREEITEM hSelected = m_treeCourse.GetSelectedItem();
+    OnPdfTreeItemSelected(hSelected);
 }
 
-void CTrainingDlg::OpenPdfByIndex(int nPdfIndex)
+void CTrainingDlg::CollectPdfIndicesInFolder(
+    HTREEITEM hFolderItem,
+    CArray<int>& arrPdfIndices)
 {
-    if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+    arrPdfIndices.RemoveAll();
+
+    if (hFolderItem == nullptr)
         return;
 
-    CStringW strFullPath = m_arrPdfFiles[nPdfIndex];
-    if (GetFileAttributesW(strFullPath) == INVALID_FILE_ATTRIBUTES)
+    for (HTREEITEM hChild = m_treeCourse.GetChildItem(hFolderItem);
+        hChild != nullptr;
+        hChild = m_treeCourse.GetNextSiblingItem(hChild))
     {
-        AfxMessageBox(L"파일을 찾을 수 없습니다.\n" + strFullPath,
-            MB_OK | MB_ICONWARNING);
+        const DWORD_PTR dwData = m_treeCourse.GetItemData(hChild);
+        if (IS_PDF_TREE_ITEM(dwData))
+            arrPdfIndices.Add(static_cast<int>(GET_LESSON_INDEX(dwData)));
+    }
+}
+
+void CTrainingDlg::DisplayPdfCoversInFolder(
+    HTREEITEM hFolderItem,
+    int nSelectPdfIndex)
+{
+    if (hFolderItem == nullptr)
+        return;
+
+    CArray<int> arrPdfIndices;
+    CollectPdfIndicesInFolder(hFolderItem, arrPdfIndices);
+
+    BringPdfCoverToFront();
+    m_pdfCoverView.ShowPdfCovers(m_arrPdfFiles, arrPdfIndices);
+
+    if (nSelectPdfIndex >= 0)
+    {
+        m_nSelectedPdfIndex = nSelectPdfIndex;
+        m_pdfCoverView.SetSelectedPdfIndex(nSelectPdfIndex);
+
+        if (nSelectPdfIndex < m_arrPdfFiles.GetSize())
+        {
+            const CStringW& strFullPath = m_arrPdfFiles[nSelectPdfIndex];
+            int nSlash = strFullPath.ReverseFind(L'\\');
+            CStringW strFileName = (nSlash >= 0) ? strFullPath.Mid(nSlash + 1) : strFullPath;
+            m_staticTitle.SetWindowText(strFileName);
+        }
+    }
+    else
+    {
+        m_nSelectedPdfIndex = -1;
+        m_staticTitle.SetWindowText(L"PDF 보기");
+    }
+}
+
+void CTrainingDlg::OnPdfTreeItemSelected(HTREEITEM hItem)
+{
+    if (hItem == nullptr)
+        return;
+
+    const DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
+    if (IS_PDF_TREE_ITEM(dwData))
+    {
+        const int nPdfIndex = static_cast<int>(GET_LESSON_INDEX(dwData));
+        HTREEITEM hFolder = m_treeCourse.GetParentItem(hItem);
+        if (hFolder == nullptr)
+            hFolder = hItem;
+
+        DisplayPdfCoversInFolder(hFolder, nPdfIndex);
         return;
     }
 
-    HINSTANCE hResult = ShellExecuteW(
-        m_hWnd, L"open", strFullPath, nullptr, nullptr, SW_SHOWNORMAL);
-
-    if (reinterpret_cast<INT_PTR>(hResult) <= 32)
-        AfxMessageBox(L"PDF 파일을 열 수 없습니다.", MB_OK | MB_ICONERROR);
+    DisplayPdfCoversInFolder(hItem, -1);
 }
 
 void CTrainingDlg::UpdateContentButtons()
@@ -1009,6 +1116,22 @@ LRESULT CTrainingDlg::OnImageViewItemSelected(WPARAM wParam, LPARAM /*lParam*/)
     return 0;
 }
 
+LRESULT CTrainingDlg::OnPdfCoverItemSelected(WPARAM wParam, LPARAM /*lParam*/)
+{
+    const int nPdfIndex = static_cast<int>(wParam);
+    if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+        return 0;
+
+    m_nSelectedPdfIndex = nPdfIndex;
+
+    const CStringW& strFullPath = m_arrPdfFiles[nPdfIndex];
+    int nSlash = strFullPath.ReverseFind(L'\\');
+    CStringW strFileName = (nSlash >= 0) ? strFullPath.Mid(nSlash + 1) : strFullPath;
+    m_staticTitle.SetWindowText(strFileName);
+
+    return 0;
+}
+
 void CTrainingDlg::LaunchFile(const CStringW& strRelativePath)
 {
     if (strRelativePath.IsEmpty())
@@ -1050,10 +1173,7 @@ void CTrainingDlg::OnSelchangedTreeCourse(NMHDR* pNMHDR, LRESULT* pResult)
         if (m_bImageListMode)
             OnImageTreeItemSelected(hItem);
         else if (m_bPdfListMode)
-        {
-            if (IS_PDF_TREE_ITEM(dwData))
-                OpenPdfByIndex(GET_LESSON_INDEX(dwData));
-        }
+            OnPdfTreeItemSelected(hItem);
         else
         {
             int nCourseIndex = GET_COURSE_INDEX(dwData);

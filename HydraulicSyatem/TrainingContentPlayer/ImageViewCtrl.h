@@ -13,6 +13,7 @@ public:
     void ClearView();
     void ShowImageGrid(const CStringArray& arrImagePaths, const CArray<int>& arrIndices);
     void ShowSingleImage(const CStringW& strImagePath);
+    void ShowSingleImagePreview(CImage& image);
     BOOL IsSingleImageMode() const;
     BOOL HandleMouseWheel(short zDelta, const CPoint& ptScreen);
     BOOL CreateOverPlaceholder(CWnd* pParent, CWnd* pPlaceholder, UINT nHostId);

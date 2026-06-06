@@ -27,6 +27,7 @@
 #define IDC_START_DESC                  1018
 #define IDC_START_COMPANY               1019
 #define IDC_START_VERSION               1020
+#define IDC_PDF_COVER_VIEW              1021
 
 // Next default values for new objects
 // 
@@ -34,7 +35,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1021
+#define _APS_NEXT_CONTROL_VALUE         1022
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

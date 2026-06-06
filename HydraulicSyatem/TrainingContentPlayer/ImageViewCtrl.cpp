@@ -264,6 +264,30 @@ void CImageViewCtrl::ShowSingleImage(const CStringW& strImagePath)
     RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
 }
 
+void CImageViewCtrl::ShowSingleImagePreview(CImage& image)
+{
+    m_mode = ViewMode::None;
+    SetBitmap(nullptr);
+    m_image.Destroy();
+    m_arrGridPaths.RemoveAll();
+    m_arrGridIndices.RemoveAll();
+    m_bDragging = FALSE;
+    if (GetCapture() == this)
+        ReleaseCapture();
+
+    if (image.IsNull() || GetSafeHwnd() == nullptr)
+    {
+        RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
+        return;
+    }
+
+    HBITMAP hBitmap = image.Detach();
+    m_image.Attach(hBitmap);
+    m_mode = ViewMode::Single;
+    ResetZoomPan();
+    RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
+}
+
 void CImageViewCtrl::ShowImageGrid(
     const CStringArray& arrImagePaths,
     const CArray<int>& arrIndices)

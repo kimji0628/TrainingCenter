@@ -7,6 +7,7 @@
 #include "VideoViewDlg.h"
 
 #include "ImageViewCtrl.h"
+#include "PdfCoverViewCtrl.h"
 
 
 
@@ -49,6 +50,7 @@ protected:
     CStatic          m_staticThumbnail;
 
     CImageViewCtrl   m_imageView;
+    CPdfCoverViewCtrl m_pdfCoverView;
 
 
 
@@ -73,6 +75,8 @@ protected:
     CStringArray m_arrPdfFiles;
 
     CStringArray m_arrImageFiles;
+
+    int m_nSelectedPdfIndex;
 
 
 
@@ -103,7 +107,13 @@ protected:
 
     void EnsureCourseTree();
 
-    void OpenPdfByIndex(int nPdfIndex);
+    void CollectPdfIndicesInFolder(HTREEITEM hFolderItem, CArray<int>& arrPdfIndices);
+
+    void DisplayPdfCoversInFolder(HTREEITEM hFolderItem, int nSelectPdfIndex = -1);
+
+    void OnPdfTreeItemSelected(HTREEITEM hItem);
+
+    void BringPdfCoverToFront();
 
     void DisplayImageByIndex(int nImageIndex);
 
@@ -183,6 +193,7 @@ protected:
     afx_msg LRESULT OnEnsureVideoPlayer(WPARAM wParam, LPARAM lParam);
 
     afx_msg LRESULT OnImageViewItemSelected(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnPdfCoverItemSelected(WPARAM wParam, LPARAM lParam);
 
 
 
