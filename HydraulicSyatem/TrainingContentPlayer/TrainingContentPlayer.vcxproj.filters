@@ -29,6 +29,7 @@
     <ClInclude Include="TrainingLesson.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="TrainingCourse.h"><Filter>Core</Filter></ClInclude>
     <ClInclude Include="TrainingManager.h"><Filter>Core</Filter></ClInclude>
+    <ClInclude Include="StartDlg.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="TrainingDlg.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="ImageViewCtrl.h"><Filter>UI</Filter></ClInclude>
     <ClInclude Include="ImageViewDlg.h"><Filter>UI</Filter></ClInclude>
@@ -41,6 +42,7 @@
     <ClCompile Include="TrainingLesson.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="TrainingCourse.cpp"><Filter>Core</Filter></ClCompile>
     <ClCompile Include="TrainingManager.cpp"><Filter>Core</Filter></ClCompile>
+    <ClCompile Include="StartDlg.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="TrainingDlg.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="ImageViewCtrl.cpp"><Filter>UI</Filter></ClCompile>
     <ClCompile Include="ImageViewDlg.cpp"><Filter>UI</Filter></ClCompile>

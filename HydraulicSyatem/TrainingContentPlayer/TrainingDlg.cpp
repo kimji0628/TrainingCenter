@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "TrainingDlg.h"
+#include "StartDlg.h"
 #include "Util.h"
 
 // Tree 아이템 데이터: 상위 16비트 = 코스 인덱스, 하위 16비트 = 레슨 인덱스 (0xFFFF = 코스 노드)
@@ -271,6 +272,9 @@ BOOL CTrainingDlg::OnInitDialog()
     CRect rcClient;
     GetClientRect(&rcClient);
     LayoutControls(rcClient.Width(), rcClient.Height());
+
+    CStartDlg startDlg(this);
+    startDlg.DoModal();
 
     return TRUE;
 }

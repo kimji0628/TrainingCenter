@@ -38,6 +38,7 @@ BOOL CTrainingContentPlayerApp::InitInstance()
     CTrainingDlg dlg;
     m_pMainWnd = &dlg;
     INT_PTR nResponse = dlg.DoModal();
+    m_pMainWnd = nullptr;
 
     if (nResponse == IDOK)
     {
