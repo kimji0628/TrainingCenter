@@ -180,6 +180,9 @@ void CVideoViewDlg::Shutdown()
     CVideoViewDlg* pDlg = s_pActiveDlg;
     s_pActiveDlg = nullptr;
 
+    if (::IsWindow(pDlg->GetSafeHwnd()))
+        pDlg->StopAndBlank();
+
     pDlg->CleanupWebView();
 
     if (::IsWindow(pDlg->GetSafeHwnd()))

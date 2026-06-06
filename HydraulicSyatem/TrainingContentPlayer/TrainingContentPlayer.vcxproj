@@ -124,6 +124,7 @@
     <ClInclude Include="ImageViewDlg.h" />
     <ClInclude Include="PdfCoverViewCtrl.h" />
     <ClInclude Include="PdfRenderEngine.h" />
+    <ClInclude Include="PdfViewerCtrl.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="StartDlg.h" />
@@ -141,6 +142,7 @@
     <ClCompile Include="ImageViewDlg.cpp" />
     <ClCompile Include="PdfCoverViewCtrl.cpp" />
     <ClCompile Include="PdfRenderEngine.cpp" />
+    <ClCompile Include="PdfViewerCtrl.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>

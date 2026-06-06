@@ -8,6 +8,7 @@
 
 #include "ImageViewCtrl.h"
 #include "PdfCoverViewCtrl.h"
+#include "PdfViewerCtrl.h"
 
 
 
@@ -51,6 +52,7 @@ protected:
 
     CImageViewCtrl   m_imageView;
     CPdfCoverViewCtrl m_pdfCoverView;
+    CPdfViewerCtrl m_pdfViewer;
 
 
 
@@ -61,10 +63,14 @@ protected:
     BOOL m_bControlsReady;
 
     BOOL m_bPdfListMode;
+    BOOL m_bPdfViewerActive;
 
     BOOL m_bImageListMode;
 
     BOOL m_bSuppressTreeSelChange;
+
+    BOOL m_bExitCleanupDone;
+    BOOL m_bExitConfirmShowing;
 
 
 
@@ -114,6 +120,9 @@ protected:
     void OnPdfTreeItemSelected(HTREEITEM hItem);
 
     void BringPdfCoverToFront();
+    void BringPdfViewerToFront();
+    void OpenPdfViewer(int nPdfIndex);
+    void ClosePdfViewer();
 
     void DisplayImageByIndex(int nImageIndex);
 
@@ -164,6 +173,9 @@ protected:
     void LayoutControls(int cx, int cy);
     void BringImageViewToFront();
 
+    void DiscardPendingCloseMessages();
+    void CleanupResourcesBeforeExit();
+
 
 
     afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -188,12 +200,15 @@ protected:
 
     afx_msg void OnClose();
 
+    afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+
     afx_msg void OnDestroy();
 
     afx_msg LRESULT OnEnsureVideoPlayer(WPARAM wParam, LPARAM lParam);
 
     afx_msg LRESULT OnImageViewItemSelected(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnPdfCoverItemSelected(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnPdfViewerBackToList(WPARAM wParam, LPARAM lParam);
 
 
 

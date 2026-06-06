@@ -105,8 +105,11 @@ CTrainingDlg::CTrainingDlg(CWnd* pParent)
     , m_nCurrentLessonIndex(-1)
     , m_bControlsReady(FALSE)
     , m_bPdfListMode(FALSE)
+    , m_bPdfViewerActive(FALSE)
     , m_bImageListMode(FALSE)
     , m_bSuppressTreeSelChange(FALSE)
+    , m_bExitCleanupDone(FALSE)
+    , m_bExitConfirmShowing(FALSE)
     , m_nSelectedPdfIndex(-1)
 {
 }
@@ -132,10 +135,12 @@ BEGIN_MESSAGE_MAP(CTrainingDlg, CDialogEx)
     ON_WM_SIZE()
     ON_WM_GETMINMAXINFO()
     ON_WM_CLOSE()
+    ON_WM_SYSCOMMAND()
     ON_WM_DESTROY()
     ON_MESSAGE(WM_USER + 100, &CTrainingDlg::OnEnsureVideoPlayer)
     ON_MESSAGE(WM_IMAGE_VIEW_ITEM_SELECTED, &CTrainingDlg::OnImageViewItemSelected)
     ON_MESSAGE(WM_PDF_COVER_ITEM_SELECTED, &CTrainingDlg::OnPdfCoverItemSelected)
+    ON_MESSAGE(WM_PDF_VIEWER_BACK_TO_LIST, &CTrainingDlg::OnPdfViewerBackToList)
 END_MESSAGE_MAP()
 
 void CTrainingDlg::SetupKoreanUI()
@@ -257,6 +262,16 @@ BOOL CTrainingDlg::OnInitDialog()
     }
     m_pdfCoverView.ShowWindow(SW_HIDE);
 
+    if (!m_pdfViewer.CreateOverPlaceholder(this, &m_staticThumbnail, IDC_PDF_VIEWER_HOST))
+    {
+        AfxMessageBox(
+            L"PDF 뷰어 영역 초기화에 실패했습니다.",
+            MB_OK | MB_ICONERROR);
+        EndDialog(IDCANCEL);
+        return FALSE;
+    }
+    m_pdfViewer.ShowWindow(SW_HIDE);
+
     RefreshPdfFileList();
     RefreshImageFileList();
 
@@ -295,13 +310,32 @@ BOOL CTrainingDlg::OnInitDialog()
 
 BOOL CTrainingDlg::PreTranslateMessage(MSG* pMsg)
 {
-    if (pMsg->message == WM_MOUSEWHEEL &&
-        ::IsWindow(m_imageView.GetSafeHwnd()) &&
-        m_imageView.IsSingleImageMode())
+    if (m_bPdfViewerActive && ::IsWindow(m_pdfViewer.GetSafeHwnd()))
+    {
+        if (pMsg->message == WM_KEYDOWN)
+        {
+            if (m_pdfViewer.HandleKeyDown(static_cast<UINT>(pMsg->wParam)))
+                return TRUE;
+        }
+
+        if (pMsg->message == WM_MOUSEWHEEL)
+        {
+            CPoint pt(GET_X_LPARAM(pMsg->lParam), GET_Y_LPARAM(pMsg->lParam));
+            if (m_pdfViewer.HandleMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
+                return TRUE;
+        }
+    }
+
+    if (pMsg->message == WM_MOUSEWHEEL)
     {
         CPoint pt(GET_X_LPARAM(pMsg->lParam), GET_Y_LPARAM(pMsg->lParam));
-        if (m_imageView.HandleMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
+
+        if (::IsWindow(m_imageView.GetSafeHwnd()) &&
+            m_imageView.IsSingleImageMode() &&
+            m_imageView.HandleMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
+        {
             return TRUE;
+        }
     }
 
     return CDialogEx::PreTranslateMessage(pMsg);
@@ -414,6 +448,14 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
         nThumbBottom - nThumbTop,
         SWP_NOZORDER | SWP_NOACTIVATE);
 
+    m_pdfViewer.SetWindowPos(
+        nullptr,
+        nContentLeft,
+        nThumbTop,
+        nContentWidth,
+        nThumbBottom - nThumbTop,
+        SWP_NOZORDER | SWP_NOACTIVATE);
+
     CVideoViewDlg::SyncHostArea(&m_imageView);
 }
 
@@ -440,6 +482,9 @@ void CTrainingDlg::BringPdfCoverToFront()
     if (::IsWindow(m_imageView.GetSafeHwnd()))
         m_imageView.ShowWindow(SW_HIDE);
 
+    if (::IsWindow(m_pdfViewer.GetSafeHwnd()))
+        m_pdfViewer.ShowWindow(SW_HIDE);
+
     if (!::IsWindow(m_pdfCoverView.GetSafeHwnd()))
         return;
 
@@ -447,6 +492,62 @@ void CTrainingDlg::BringPdfCoverToFront()
         &CWnd::wndTop,
         0, 0, 0, 0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+}
+
+void CTrainingDlg::BringPdfViewerToFront()
+{
+    CVideoViewDlg::HideActive();
+
+    if (::IsWindow(m_imageView.GetSafeHwnd()))
+        m_imageView.ShowWindow(SW_HIDE);
+
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ShowWindow(SW_HIDE);
+
+    if (!::IsWindow(m_pdfViewer.GetSafeHwnd()))
+        return;
+
+    m_pdfViewer.SetWindowPos(
+        &CWnd::wndTop,
+        0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+}
+
+void CTrainingDlg::OpenPdfViewer(int nPdfIndex)
+{
+    if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+        return;
+
+    const CStringW& strFullPath = m_arrPdfFiles[nPdfIndex];
+
+    BringPdfViewerToFront();
+
+    if (!m_pdfViewer.OpenDocument(strFullPath))
+    {
+        AfxMessageBox(
+            L"PDF 파일을 열 수 없습니다.\n" + strFullPath,
+            MB_OK | MB_ICONERROR);
+        ClosePdfViewer();
+        return;
+    }
+
+    m_bPdfViewerActive = TRUE;
+    m_nSelectedPdfIndex = nPdfIndex;
+
+    int nSlash = strFullPath.ReverseFind(L'\\');
+    CStringW strFileName = (nSlash >= 0) ? strFullPath.Mid(nSlash + 1) : strFullPath;
+    m_staticTitle.SetWindowText(strFileName);
+    m_editDescription.SetWindowText(
+        L"마우스 휠: 이전/다음 페이지 | Ctrl+휠: 확대/축소\n\n"
+        L"키보드: ↑↓/PageUp·PageDown(페이지), Home/End(처음·끝), Ctrl+±/0(확대·축소·맞춤)\n"
+        L"목록으로 돌아가기를 누르면 PDF 표지 목록으로 복귀합니다.");
+}
+
+void CTrainingDlg::ClosePdfViewer()
+{
+    m_pdfViewer.CloseDocument();
+    m_bPdfViewerActive = FALSE;
+    BringPdfCoverToFront();
 }
 
 void CTrainingDlg::OnSize(UINT nType, int cx, int cy)
@@ -672,9 +773,13 @@ void CTrainingDlg::ShowCourseTree()
 
     m_bPdfListMode = FALSE;
     m_bImageListMode = FALSE;
+    m_bPdfViewerActive = FALSE;
     m_nSelectedPdfIndex = -1;
+    m_pdfViewer.CloseDocument();
     if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
         m_pdfCoverView.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_pdfViewer.GetSafeHwnd()))
+        m_pdfViewer.ShowWindow(SW_HIDE);
     BuildCourseTree();
 
     if (m_nCurrentCourseIndex >= 0 && m_nCurrentLessonIndex >= 0)
@@ -749,6 +854,8 @@ void CTrainingDlg::ShowPdfTree()
 
     m_bPdfListMode = TRUE;
     m_bImageListMode = FALSE;
+    m_bPdfViewerActive = FALSE;
+    m_pdfViewer.CloseDocument();
     BuildPdfTree();
 
     BringPdfCoverToFront();
@@ -759,7 +866,7 @@ void CTrainingDlg::ShowPdfTree()
     m_editDescription.SetWindowText(
         L"좌측 트리에서 폴더를 선택하세요.\n\n"
         L"오른쪽에는 해당 폴더의 PDF 표지(1페이지)와 파일명이 카드 형태로 표시됩니다.\n"
-        L"표지를 클릭하면 현재 PDF가 선택됩니다.\n"
+        L"표지 또는 파일명을 클릭하면 내부 PDF 뷰어에서 전체 페이지를 볼 수 있습니다.\n"
         L".\\PDF 폴더와 하위 폴더의 모든 PDF 파일(.pdf, .PDF)이 표시됩니다.");
 
     HTREEITEM hSelected = m_treeCourse.GetSelectedItem();
@@ -822,6 +929,9 @@ void CTrainingDlg::OnPdfTreeItemSelected(HTREEITEM hItem)
 {
     if (hItem == nullptr)
         return;
+
+    if (m_bPdfViewerActive)
+        ClosePdfViewer();
 
     const DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
     if (IS_PDF_TREE_ITEM(dwData))
@@ -1122,12 +1232,22 @@ LRESULT CTrainingDlg::OnPdfCoverItemSelected(WPARAM wParam, LPARAM /*lParam*/)
     if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
         return 0;
 
-    m_nSelectedPdfIndex = nPdfIndex;
+    OpenPdfViewer(nPdfIndex);
+    return 0;
+}
 
-    const CStringW& strFullPath = m_arrPdfFiles[nPdfIndex];
-    int nSlash = strFullPath.ReverseFind(L'\\');
-    CStringW strFileName = (nSlash >= 0) ? strFullPath.Mid(nSlash + 1) : strFullPath;
-    m_staticTitle.SetWindowText(strFileName);
+LRESULT CTrainingDlg::OnPdfViewerBackToList(WPARAM /*wParam*/, LPARAM /*lParam*/)
+{
+    if (!m_bPdfListMode)
+        return 0;
+
+    ClosePdfViewer();
+
+    m_staticTitle.SetWindowText(L"PDF 보기");
+    m_editDescription.SetWindowText(
+        L"좌측 트리에서 폴더를 선택하세요.\n\n"
+        L"오른쪽에는 해당 폴더의 PDF 표지(1페이지)와 파일명이 카드 형태로 표시됩니다.\n"
+        L"표지 또는 파일명을 클릭하면 내부 PDF 뷰어에서 전체 페이지를 볼 수 있습니다.");
 
     return 0;
 }
@@ -1246,14 +1366,77 @@ void CTrainingDlg::OnBnClickedBtnReload()
     UpdateContentButtons();
 }
 
+void CTrainingDlg::CleanupResourcesBeforeExit()
+{
+    if (m_bExitCleanupDone)
+        return;
+
+    m_bExitCleanupDone = TRUE;
+
+    CVideoViewDlg::HideActive();
+
+    if (m_bPdfViewerActive)
+        ClosePdfViewer();
+
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ClearView();
+
+    if (::IsWindow(m_imageView.GetSafeHwnd()))
+        m_imageView.ClearView();
+
+    CVideoViewDlg::Shutdown();
+    PdfRenderEngine::Shutdown();
+}
+
+void CTrainingDlg::DiscardPendingCloseMessages()
+{
+    MSG msg;
+    while (::PeekMessage(&msg, m_hWnd, WM_CLOSE, WM_CLOSE, PM_REMOVE))
+    {
+    }
+}
+
 void CTrainingDlg::OnClose()
 {
-    CVideoViewDlg::Shutdown();
+    if (m_bExitCleanupDone)
+    {
+        CDialogEx::OnClose();
+        return;
+    }
+
+    if (m_bExitConfirmShowing)
+        return;
+
+    m_bExitConfirmShowing = TRUE;
+    const BOOL bConfirmed =
+        AfxMessageBox(
+            L"프로그램을 종료하시겠습니까?",
+            MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES;
+    m_bExitConfirmShowing = FALSE;
+
+    if (!bConfirmed)
+    {
+        DiscardPendingCloseMessages();
+        return;
+    }
+
+    CleanupResourcesBeforeExit();
     CDialogEx::OnClose();
+}
+
+void CTrainingDlg::OnSysCommand(UINT nID, LPARAM lParam)
+{
+    if ((nID & 0xFFF0) == SC_CLOSE)
+    {
+        SendMessage(WM_CLOSE);
+        return;
+    }
+
+    CDialogEx::OnSysCommand(nID, lParam);
 }
 
 void CTrainingDlg::OnDestroy()
 {
-    CVideoViewDlg::Shutdown();
+    CleanupResourcesBeforeExit();
     CDialogEx::OnDestroy();
 }

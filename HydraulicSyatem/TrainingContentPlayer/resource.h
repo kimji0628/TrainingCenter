@@ -28,6 +28,13 @@
 #define IDC_START_COMPANY               1019
 #define IDC_START_VERSION               1020
 #define IDC_PDF_COVER_VIEW              1021
+#define IDC_PDF_VIEWER_HOST             1022
+#define IDC_PDF_BTN_BACK                1023
+#define IDC_PDF_BTN_PREV_PAGE           1024
+#define IDC_PDF_BTN_NEXT_PAGE           1025
+#define IDC_PDF_BTN_ZOOM_IN             1026
+#define IDC_PDF_BTN_ZOOM_OUT            1027
+#define IDC_PDF_STATIC_PAGE_INFO        1028
 
 // Next default values for new objects
 // 
@@ -35,7 +42,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_CONTROL_VALUE         1029
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
