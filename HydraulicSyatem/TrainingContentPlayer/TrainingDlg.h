@@ -119,6 +119,11 @@ protected:
 
     void OnPdfTreeItemSelected(HTREEITEM hItem);
 
+    void SelectPdfFile(int nPdfIndex);
+    void SelectPdfTreeItemByIndex(int nPdfIndex);
+    void UpdatePdfTreeSelectionHighlight(int nSelectedPdfIndex);
+    void UpdatePdfTreeSelectionHighlightRecursive(HTREEITEM hItem, int nSelectedPdfIndex);
+
     void BringPdfCoverToFront();
     void BringPdfViewerToFront();
     void OpenPdfViewer(int nPdfIndex);

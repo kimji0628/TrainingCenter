@@ -11,8 +11,11 @@ namespace
     constexpr int PANE_GAP = 8;
     constexpr int THUMB_GAP = 8;
     constexpr int THUMB_LABEL_HEIGHT = 18;
+    constexpr int THUMB_SCROLLBAR_WIDTH = 14;
     constexpr int THUMB_MIN_RENDER_WIDTH = 72;
     constexpr double THUMB_RENDER_SUPERSAMPLE = 2.5;
+    constexpr int THUMB_CACHE_MAX = 80;
+    constexpr int THUMB_VISIBLE_BUFFER = 5;
     constexpr int PAGE_RENDER_MIN_WIDTH = 480;
     constexpr int PAGE_RENDER_MAX_WIDTH = 4096;
     constexpr double PAGE_RENDER_SUPERSAMPLE = 3.0;
@@ -88,6 +91,12 @@ void CPdfViewerCtrl::CreateToolbarButtons()
     m_staticPageInfo.Create(L"", WS_CHILD | WS_VISIBLE | SS_CENTERIMAGE | SS_CENTER,
         CRect(0, 0, 0, 0), this, IDC_PDF_STATIC_PAGE_INFO);
     TrainingUtil::ApplyKoreanFont(&m_staticPageInfo);
+
+    m_thumbScrollbar.Create(
+        SBS_VERT | WS_CHILD | WS_VISIBLE,
+        CRect(0, 0, 0, 0),
+        this,
+        IDC_PDF_THUMB_SCROLL);
 }
 void CPdfViewerCtrl::FreeThumbnails()
 {
@@ -97,6 +106,7 @@ void CPdfViewerCtrl::FreeThumbnails()
             ::DeleteObject(m_arrThumbBitmaps[i]);
     }
     m_arrThumbBitmaps.RemoveAll();
+    m_arrThumbLruOrder.RemoveAll();
 }
 void CPdfViewerCtrl::ResetViewerState()
 {
@@ -154,8 +164,9 @@ BOOL CPdfViewerCtrl::OpenDocument(const CStringW& strPdfPath)
         m_arrPageWidths[i] = dW;
         m_arrPageHeights[i] = dH;
     }
-    BuildThumbnails();
+    InitThumbCache();
     SetCurrentPage(0);
+    UpdateThumbScrollbar();
     if (GetSafeHwnd() != nullptr)
     {
         SetFocus();
@@ -165,7 +176,12 @@ BOOL CPdfViewerCtrl::OpenDocument(const CStringW& strPdfPath)
 }
 int CPdfViewerCtrl::GetThumbDisplayWidth() const
 {
-    return max(THUMB_MIN_RENDER_WIDTH, THUMB_PANE_WIDTH - (THUMB_GAP * 2));
+    if (!m_rcThumbContent.IsRectEmpty())
+        return max(THUMB_MIN_RENDER_WIDTH, m_rcThumbContent.Width() - (THUMB_GAP * 2));
+
+    return max(
+        THUMB_MIN_RENDER_WIDTH,
+        THUMB_PANE_WIDTH - THUMB_SCROLLBAR_WIDTH - (THUMB_GAP * 2));
 }
 int CPdfViewerCtrl::GetThumbRenderWidth() const
 {
@@ -193,21 +209,205 @@ int CPdfViewerCtrl::GetThumbContentHeight() const
 {
     return m_nPageCount * GetThumbItemHeight();
 }
-void CPdfViewerCtrl::BuildThumbnails()
+void CPdfViewerCtrl::InitThumbCache()
 {
     FreeThumbnails();
     m_arrThumbBitmaps.SetSize(m_nPageCount);
-    const int nThumbW = GetThumbRenderWidth();
     for (int i = 0; i < m_nPageCount; ++i)
+        m_arrThumbBitmaps[i] = nullptr;
+}
+
+void CPdfViewerCtrl::TouchThumbLru(int nPage)
+{
+    for (int i = 0; i < m_arrThumbLruOrder.GetSize(); ++i)
     {
-        CImage thumbImage;
-        if (!m_doc.RenderPage(i, nThumbW, thumbImage))
+        if (m_arrThumbLruOrder[i] == nPage)
         {
-            m_arrThumbBitmaps[i] = nullptr;
-            continue;
+            m_arrThumbLruOrder.RemoveAt(i);
+            break;
         }
-        m_arrThumbBitmaps[i] = thumbImage.Detach();
     }
+    m_arrThumbLruOrder.Add(nPage);
+}
+
+void CPdfViewerCtrl::PruneThumbCache()
+{
+    if (m_arrThumbLruOrder.GetSize() <= THUMB_CACHE_MAX)
+        return;
+
+    int nFirstPage = 0;
+    int nLastPage = -1;
+    GetVisibleThumbPageRange(nFirstPage, nLastPage);
+    const int nKeepStart = max(0, nFirstPage - THUMB_VISIBLE_BUFFER);
+    const int nKeepEnd = min(m_nPageCount - 1, nLastPage + THUMB_VISIBLE_BUFFER);
+
+    while (m_arrThumbLruOrder.GetSize() > THUMB_CACHE_MAX)
+    {
+        int nVictim = -1;
+        for (int i = 0; i < m_arrThumbLruOrder.GetSize(); ++i)
+        {
+            const int nPage = m_arrThumbLruOrder[i];
+            if (nPage < nKeepStart || nPage > nKeepEnd)
+            {
+                nVictim = nPage;
+                break;
+            }
+        }
+        if (nVictim < 0)
+            break;
+
+        if (nVictim < m_arrThumbBitmaps.GetSize() && m_arrThumbBitmaps[nVictim] != nullptr)
+        {
+            ::DeleteObject(m_arrThumbBitmaps[nVictim]);
+            m_arrThumbBitmaps[nVictim] = nullptr;
+        }
+        for (int i = 0; i < m_arrThumbLruOrder.GetSize(); ++i)
+        {
+            if (m_arrThumbLruOrder[i] == nVictim)
+            {
+                m_arrThumbLruOrder.RemoveAt(i);
+                break;
+            }
+        }
+    }
+}
+
+void CPdfViewerCtrl::EnsureThumbBitmap(int nPage)
+{
+    if (!IsDocumentOpen() || nPage < 0 || nPage >= m_nPageCount)
+        return;
+
+    if (nPage < m_arrThumbBitmaps.GetSize() && m_arrThumbBitmaps[nPage] != nullptr)
+    {
+        TouchThumbLru(nPage);
+        return;
+    }
+
+    CImage thumbImage;
+    if (!m_doc.RenderPage(nPage, GetThumbRenderWidth(), thumbImage))
+        return;
+
+    if (nPage >= m_arrThumbBitmaps.GetSize())
+        m_arrThumbBitmaps.SetSize(m_nPageCount);
+
+    m_arrThumbBitmaps[nPage] = thumbImage.Detach();
+    TouchThumbLru(nPage);
+    PruneThumbCache();
+}
+
+void CPdfViewerCtrl::GetVisibleThumbPageRange(int& nFirstPage, int& nLastPage) const
+{
+    nFirstPage = 0;
+    nLastPage = -1;
+    if (!IsDocumentOpen() || m_rcThumbContent.IsRectEmpty() || m_nPageCount <= 0)
+        return;
+
+    const int nItemH = GetThumbItemHeight();
+    if (nItemH <= 0)
+        return;
+
+    nFirstPage = m_nThumbScrollY / nItemH;
+    nLastPage = (m_nThumbScrollY + m_rcThumbContent.Height()) / nItemH;
+    nFirstPage = max(0, min(m_nPageCount - 1, nFirstPage));
+    nLastPage = max(0, min(m_nPageCount - 1, nLastPage));
+}
+
+void CPdfViewerCtrl::ClampThumbScrollY()
+{
+    const int nMaxScroll = max(0, GetThumbContentHeight() - m_rcThumbContent.Height());
+    m_nThumbScrollY = max(0, min(nMaxScroll, m_nThumbScrollY));
+}
+
+void CPdfViewerCtrl::UpdateThumbScrollbar()
+{
+    if (!::IsWindow(m_thumbScrollbar.GetSafeHwnd()) || m_rcThumbContent.IsRectEmpty())
+        return;
+
+    const int nContentH = GetThumbContentHeight();
+    const int nViewH = max(1, m_rcThumbContent.Height());
+    const BOOL bNeedScroll = nContentH > nViewH;
+    m_thumbScrollbar.ShowWindow(bNeedScroll ? SW_SHOW : SW_HIDE);
+    if (!bNeedScroll)
+        return;
+
+    SCROLLINFO si = {};
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin = 0;
+    si.nMax = max(0, nContentH - 1);
+    si.nPage = static_cast<UINT>(nViewH);
+    si.nPos = m_nThumbScrollY;
+    m_thumbScrollbar.SetScrollInfo(&si, TRUE);
+}
+
+void CPdfViewerCtrl::ScrollThumbsByPixels(int nDeltaPx)
+{
+    if (!IsDocumentOpen() || m_rcThumbContent.IsRectEmpty())
+        return;
+
+    m_nThumbScrollY += nDeltaPx;
+    ClampThumbScrollY();
+    UpdateThumbScrollbar();
+    Invalidate(FALSE);
+}
+
+void CPdfViewerCtrl::ScrollThumbsByWheel(short zDelta)
+{
+    if (zDelta == 0)
+        return;
+
+    const int nStep = max(24, GetThumbItemHeight() / 2);
+    const int nDeltaPx = -static_cast<int>((static_cast<__int64>(zDelta) * nStep) / WHEEL_DELTA);
+    ScrollThumbsByPixels(nDeltaPx);
+}
+
+void CPdfViewerCtrl::HandleThumbScroll(UINT nSBCode, UINT nPos)
+{
+    if (!IsDocumentOpen() || m_rcThumbContent.IsRectEmpty())
+        return;
+
+    SCROLLINFO si = {};
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_ALL;
+    if (!m_thumbScrollbar.GetScrollInfo(&si))
+        return;
+
+    const int nViewH = max(1, m_rcThumbContent.Height());
+    const int nMaxPos = max(0, static_cast<int>(si.nMax) - static_cast<int>(si.nPage) + 1);
+    int nNewPos = m_nThumbScrollY;
+
+    switch (nSBCode)
+    {
+    case SB_TOP:
+        nNewPos = 0;
+        break;
+    case SB_BOTTOM:
+        nNewPos = nMaxPos;
+        break;
+    case SB_LINEUP:
+        nNewPos -= max(24, GetThumbItemHeight() / 3);
+        break;
+    case SB_LINEDOWN:
+        nNewPos += max(24, GetThumbItemHeight() / 3);
+        break;
+    case SB_PAGEUP:
+        nNewPos -= nViewH;
+        break;
+    case SB_PAGEDOWN:
+        nNewPos += nViewH;
+        break;
+    case SB_THUMBTRACK:
+    case SB_THUMBPOSITION:
+        nNewPos = static_cast<int>(nPos);
+        break;
+    default:
+        return;
+    }
+
+    m_nThumbScrollY = max(0, min(nMaxPos, nNewPos));
+    ClampThumbScrollY();
+    UpdateThumbScrollbar();
+    Invalidate(FALSE);
 }
 int CPdfViewerCtrl::GetPageRenderWidth() const
 {
@@ -289,6 +489,16 @@ void CPdfViewerCtrl::UpdateLayoutRects()
         nBodyTop,
         min(THUMB_PANE_WIDTH + PANE_GAP, rcClient.right),
         rcClient.bottom - PANE_GAP);
+    m_rcThumbScrollBar = CRect(
+        max(m_rcThumbPane.left, m_rcThumbPane.right - THUMB_SCROLLBAR_WIDTH),
+        m_rcThumbPane.top,
+        m_rcThumbPane.right,
+        m_rcThumbPane.bottom);
+    m_rcThumbContent = CRect(
+        m_rcThumbPane.left,
+        m_rcThumbPane.top,
+        m_rcThumbScrollBar.left,
+        m_rcThumbPane.bottom);
     m_rcPagePane = CRect(
         m_rcThumbPane.right + PANE_GAP,
         nBodyTop,
@@ -296,6 +506,27 @@ void CPdfViewerCtrl::UpdateLayoutRects()
         rcClient.bottom - PANE_GAP);
     if (m_rcPagePane.left >= m_rcPagePane.right)
         m_rcPagePane.SetRectEmpty();
+    LayoutThumbScrollbar();
+}
+
+void CPdfViewerCtrl::LayoutThumbScrollbar()
+{
+    if (!::IsWindow(m_thumbScrollbar.GetSafeHwnd()))
+        return;
+
+    if (m_rcThumbScrollBar.IsRectEmpty())
+    {
+        m_thumbScrollbar.ShowWindow(SW_HIDE);
+        return;
+    }
+
+    m_thumbScrollbar.SetWindowPos(
+        nullptr,
+        m_rcThumbScrollBar.left,
+        m_rcThumbScrollBar.top,
+        m_rcThumbScrollBar.Width(),
+        m_rcThumbScrollBar.Height(),
+        SWP_NOZORDER | SWP_NOACTIVATE);
 }
 void CPdfViewerCtrl::LayoutToolbarButtons()
 {
@@ -467,16 +698,24 @@ BOOL CPdfViewerCtrl::ProcessWheelAction(short zDelta, const CPoint& ptClient, BO
     GetClientRect(&rcClient);
     if (!rcClient.PtInRect(ptClient))
         return FALSE;
+
+    if (m_rcThumbContent.PtInRect(ptClient))
+    {
+        ScrollThumbsByWheel(zDelta);
+        return TRUE;
+    }
+
+    if (!m_rcPagePane.PtInRect(ptClient))
+        return FALSE;
+
     if (bCtrlDown)
     {
-        CPoint ptZoom = m_rcPagePane.CenterPoint();
-        if (m_rcPagePane.PtInRect(ptClient))
-            ptZoom = ptClient;
         const double dFactor = (zDelta > 0) ? ZOOM_STEP : (1.0 / ZOOM_STEP);
-        ZoomAtPoint(dFactor, ptZoom);
+        ZoomAtPoint(dFactor, ptClient);
         Invalidate();
         return TRUE;
     }
+
     if (zDelta > 0)
         GoToAdjacentPage(-1);
     else
@@ -544,22 +783,25 @@ BOOL CPdfViewerCtrl::HandleKeyDown(UINT nChar)
 }
 void CPdfViewerCtrl::EnsureThumbVisible(int nPage)
 {
-    if (!IsDocumentOpen() || m_rcThumbPane.IsRectEmpty())
+    if (!IsDocumentOpen() || m_rcThumbContent.IsRectEmpty())
         return;
-    const int nItemTop = nPage * GetThumbItemHeight();
-    const int nItemBottom = nItemTop + GetThumbItemHeight();
-    if (nItemTop < m_nThumbScrollY)
-        m_nThumbScrollY = nItemTop;
-    else if (nItemBottom > m_nThumbScrollY + m_rcThumbPane.Height())
-        m_nThumbScrollY = nItemBottom - m_rcThumbPane.Height();
-    const int nMaxScroll = max(0, GetThumbContentHeight() - m_rcThumbPane.Height());
-    m_nThumbScrollY = max(0, min(nMaxScroll, m_nThumbScrollY));
+
+    const int nItemH = GetThumbItemHeight();
+    const int nItemTop = nPage * nItemH;
+    const int nItemBottom = nItemTop + nItemH;
+    const int nViewH = m_rcThumbContent.Height();
+
+    if (nItemTop < m_nThumbScrollY || nItemBottom > m_nThumbScrollY + nViewH)
+        m_nThumbScrollY = nItemTop - max(0, (nViewH - nItemH) / 2);
+
+    ClampThumbScrollY();
+    UpdateThumbScrollbar();
 }
 int CPdfViewerCtrl::HitTestThumb(const CPoint& ptClient) const
 {
-    if (!m_rcThumbPane.PtInRect(ptClient) || m_nPageCount <= 0)
+    if (!m_rcThumbContent.PtInRect(ptClient) || m_nPageCount <= 0)
         return -1;
-    const int nLocalY = ptClient.y - m_rcThumbPane.top + m_nThumbScrollY;
+    const int nLocalY = ptClient.y - m_rcThumbContent.top + m_nThumbScrollY;
     const int nItemH = GetThumbItemHeight();
     const int nIndex = nLocalY / nItemH;
     if (nIndex < 0 || nIndex >= m_nPageCount)
@@ -570,26 +812,55 @@ void CPdfViewerCtrl::DrawThumbnails(CDC& dc)
 {
     if (!IsDocumentOpen() || m_rcThumbPane.IsRectEmpty())
         return;
-    CRgn clipRgn;
-    clipRgn.CreateRectRgnIndirect(&m_rcThumbPane);
-    dc.SelectClipRgn(&clipRgn);
+
     dc.FillSolidRect(&m_rcThumbPane, RGB(245, 247, 252));
+
+    if (m_rcThumbContent.IsRectEmpty())
+        return;
+
+    int nFirstPage = 0;
+    int nLastPage = -1;
+    GetVisibleThumbPageRange(nFirstPage, nLastPage);
+    if (nLastPage < nFirstPage)
+        return;
+
+    const int nPrefetchStart = max(0, nFirstPage - THUMB_VISIBLE_BUFFER);
+    const int nPrefetchEnd = min(m_nPageCount - 1, nLastPage + THUMB_VISIBLE_BUFFER);
+    for (int i = nPrefetchStart; i <= nPrefetchEnd; ++i)
+        EnsureThumbBitmap(i);
+
+    CRgn clipRgn;
+    clipRgn.CreateRectRgnIndirect(&m_rcThumbContent);
+    dc.SelectClipRgn(&clipRgn);
+
     CFont fontLabel;
     fontLabel.CreatePointFont(75, L"Malgun Gothic");
     CFont* pOldFont = dc.SelectObject(&fontLabel);
     dc.SetBkMode(TRANSPARENT);
     dc.SetTextColor(RGB(45, 55, 75));
+
     const int nThumbW = GetThumbDisplayWidth();
     const int nThumbH = max(1, RoundToInt(nThumbW / A4_ASPECT_WH));
     const int nItemH = GetThumbItemHeight();
-    const int nLeft = m_rcThumbPane.left + THUMB_GAP;
-    for (int i = 0; i < m_nPageCount; ++i)
+    const int nLeft = m_rcThumbContent.left + THUMB_GAP;
+
+    for (int i = nFirstPage; i <= nLastPage; ++i)
     {
-        const int nTop = m_rcThumbPane.top + (i * nItemH) - m_nThumbScrollY;
+        const int nTop = m_rcThumbContent.top + (i * nItemH) - m_nThumbScrollY;
         const int nBottom = nTop + nItemH;
-        if (nBottom < m_rcThumbPane.top || nTop > m_rcThumbPane.bottom)
+        if (nBottom < m_rcThumbContent.top || nTop > m_rcThumbContent.bottom)
             continue;
+
         const BOOL bSelected = (i == m_nCurrentPage);
+        CRect rcItem(
+            nLeft - 2,
+            nTop,
+            nLeft + nThumbW + 2,
+            nTop + nItemH);
+
+        if (bSelected)
+            dc.FillSolidRect(&rcItem, RGB(225, 238, 252));
+
         CPen penFrame;
         penFrame.CreatePen(
             PS_SOLID,
@@ -597,7 +868,7 @@ void CPdfViewerCtrl::DrawThumbnails(CDC& dc)
             bSelected ? RGB(30, 120, 210) : RGB(180, 190, 205));
         CPen* pOldPen = dc.SelectObject(&penFrame);
         CBrush brushFrame;
-        brushFrame.CreateSolidBrush(RGB(255, 255, 255));
+        brushFrame.CreateSolidBrush(bSelected ? RGB(248, 251, 255) : RGB(255, 255, 255));
         CBrush* pOldBrush = dc.SelectObject(&brushFrame);
         CRect rcThumbFrame(
             nLeft,
@@ -607,6 +878,7 @@ void CPdfViewerCtrl::DrawThumbnails(CDC& dc)
         dc.Rectangle(&rcThumbFrame);
         dc.SelectObject(pOldBrush);
         dc.SelectObject(pOldPen);
+
         HBITMAP hThumb = (i < m_arrThumbBitmaps.GetSize()) ? m_arrThumbBitmaps[i] : nullptr;
         if (hThumb != nullptr)
         {
@@ -633,6 +905,7 @@ void CPdfViewerCtrl::DrawThumbnails(CDC& dc)
             }
             thumbImage.Detach();
         }
+
         CRect rcLabel(
             nLeft,
             rcThumbFrame.bottom,
@@ -640,8 +913,13 @@ void CPdfViewerCtrl::DrawThumbnails(CDC& dc)
             rcThumbFrame.bottom + THUMB_LABEL_HEIGHT);
         CStringW strLabel;
         strLabel.Format(L"%d", i + 1);
+        if (bSelected)
+            dc.SetTextColor(RGB(20, 90, 170));
         dc.DrawText(strLabel, &rcLabel, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        if (bSelected)
+            dc.SetTextColor(RGB(45, 55, 75));
     }
+
     dc.SelectObject(pOldFont);
     dc.SelectClipRgn(nullptr);
 }
@@ -701,6 +979,7 @@ BEGIN_MESSAGE_MAP(CPdfViewerCtrl, CWnd)
     ON_WM_LBUTTONUP()
     ON_WM_MOUSEMOVE()
     ON_WM_MOUSEWHEEL()
+    ON_WM_VSCROLL()
     ON_COMMAND(IDC_PDF_BTN_BACK, OnBtnBack)
     ON_COMMAND(IDC_PDF_BTN_PREV_PAGE, OnBtnPrevPage)
     ON_COMMAND(IDC_PDF_BTN_NEXT_PAGE, OnBtnNextPage)
@@ -727,6 +1006,8 @@ void CPdfViewerCtrl::OnSize(UINT nType, int cx, int cy)
     LayoutToolbarButtons();
     if (IsDocumentOpen())
     {
+        ClampThumbScrollY();
+        UpdateThumbScrollbar();
         if (!m_pageImage.IsNull())
         {
             UpdateBaseScale();
@@ -739,6 +1020,16 @@ void CPdfViewerCtrl::OnSize(UINT nType, int cx, int cy)
     }
     if (GetSafeHwnd() != nullptr)
         RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE);
+}
+
+void CPdfViewerCtrl::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
+{
+    if (pScrollBar == &m_thumbScrollbar)
+    {
+        HandleThumbScroll(nSBCode, nPos);
+        return;
+    }
+    CWnd::OnVScroll(nSBCode, nPos, pScrollBar);
 }
 void CPdfViewerCtrl::OnLButtonDown(UINT nFlags, CPoint point)
 {

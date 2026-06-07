@@ -93,6 +93,30 @@ namespace
 
         return nullptr;
     }
+
+    HTREEITEM FindPdfTreeItemRecursive(CTreeCtrl& tree, HTREEITEM hItem, int nPdfIndex)
+    {
+        if (hItem == nullptr)
+            return nullptr;
+
+        const DWORD_PTR dwData = tree.GetItemData(hItem);
+        if (IS_PDF_TREE_ITEM(dwData) &&
+            static_cast<int>(GET_LESSON_INDEX(dwData)) == nPdfIndex)
+        {
+            return hItem;
+        }
+
+        for (HTREEITEM hChild = tree.GetChildItem(hItem);
+            hChild != nullptr;
+            hChild = tree.GetNextSiblingItem(hChild))
+        {
+            HTREEITEM hFound = FindPdfTreeItemRecursive(tree, hChild, nPdfIndex);
+            if (hFound != nullptr)
+                return hFound;
+        }
+
+        return nullptr;
+    }
 }
 
 // ============================================================================
@@ -373,7 +397,7 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
     }
 
     const int nMargin = 10;
-    const int nTreeWidth = 250;
+    const int nTreeWidth = 325;
     const int nGap = 10;
     const int nContentLeft = nMargin + nTreeWidth + nGap;
     const int nRightMargin = 10;
@@ -548,6 +572,80 @@ void CTrainingDlg::ClosePdfViewer()
     m_pdfViewer.CloseDocument();
     m_bPdfViewerActive = FALSE;
     BringPdfCoverToFront();
+}
+
+void CTrainingDlg::UpdatePdfTreeSelectionHighlightRecursive(
+    HTREEITEM hItem,
+    int nSelectedPdfIndex)
+{
+    if (hItem == nullptr)
+        return;
+
+    for (HTREEITEM hChild = m_treeCourse.GetChildItem(hItem);
+        hChild != nullptr;
+        hChild = m_treeCourse.GetNextSiblingItem(hChild))
+    {
+        UpdatePdfTreeSelectionHighlightRecursive(hChild, nSelectedPdfIndex);
+    }
+
+    const DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
+    if (!IS_PDF_TREE_ITEM(dwData))
+        return;
+
+    const int nPdfIndex = static_cast<int>(GET_LESSON_INDEX(dwData));
+    const UINT nState = (nSelectedPdfIndex >= 0 && nPdfIndex == nSelectedPdfIndex)
+        ? TVIS_BOLD
+        : 0;
+    m_treeCourse.SetItemState(hItem, nState, TVIS_BOLD);
+}
+
+void CTrainingDlg::UpdatePdfTreeSelectionHighlight(int nSelectedPdfIndex)
+{
+    if (!m_bPdfListMode)
+        return;
+
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    UpdatePdfTreeSelectionHighlightRecursive(hRoot, nSelectedPdfIndex);
+}
+
+void CTrainingDlg::SelectPdfTreeItemByIndex(int nPdfIndex)
+{
+    if (!m_bPdfListMode || nPdfIndex < 0)
+        return;
+
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    HTREEITEM hItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPdfIndex);
+    if (hItem == nullptr)
+        return;
+
+    m_bSuppressTreeSelChange = TRUE;
+    m_treeCourse.SelectItem(hItem);
+    m_treeCourse.EnsureVisible(hItem);
+    m_bSuppressTreeSelChange = FALSE;
+
+    UpdatePdfTreeSelectionHighlight(nPdfIndex);
+}
+
+void CTrainingDlg::SelectPdfFile(int nPdfIndex)
+{
+    if (!m_bPdfListMode || nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+        return;
+
+    if (m_nSelectedPdfIndex == nPdfIndex && m_bPdfViewerActive)
+        return;
+
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    HTREEITEM hPdfItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPdfIndex);
+    if (hPdfItem != nullptr)
+    {
+        HTREEITEM hFolder = m_treeCourse.GetParentItem(hPdfItem);
+        if (hFolder != nullptr)
+            DisplayPdfCoversInFolder(hFolder, nPdfIndex);
+    }
+
+    SelectPdfTreeItemByIndex(nPdfIndex);
+    OpenPdfViewer(nPdfIndex);
+    m_pdfCoverView.SetSelectedPdfIndex(nPdfIndex);
 }
 
 void CTrainingDlg::OnSize(UINT nType, int cx, int cy)
@@ -864,9 +962,9 @@ void CTrainingDlg::ShowPdfTree()
 
     m_staticTitle.SetWindowText(L"PDF 보기");
     m_editDescription.SetWindowText(
-        L"좌측 트리에서 폴더를 선택하세요.\n\n"
-        L"오른쪽에는 해당 폴더의 PDF 표지(1페이지)와 파일명이 카드 형태로 표시됩니다.\n"
-        L"표지 또는 파일명을 클릭하면 내부 PDF 뷰어에서 전체 페이지를 볼 수 있습니다.\n"
+        L"좌측 목록에서 PDF 파일명을 클릭하거나, 폴더를 선택한 뒤 표지를 클릭하세요.\n\n"
+        L"PDF 파일명을 클릭하면 즉시 내부 뷰어에서 열리고,\n"
+        L"폴더를 선택하면 해당 폴더의 PDF 표지(1페이지)가 카드 형태로 표시됩니다.\n"
         L".\\PDF 폴더와 하위 폴더의 모든 PDF 파일(.pdf, .PDF)이 표시됩니다.");
 
     HTREEITEM hSelected = m_treeCourse.GetSelectedItem();
@@ -930,22 +1028,18 @@ void CTrainingDlg::OnPdfTreeItemSelected(HTREEITEM hItem)
     if (hItem == nullptr)
         return;
 
-    if (m_bPdfViewerActive)
-        ClosePdfViewer();
-
     const DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
     if (IS_PDF_TREE_ITEM(dwData))
     {
-        const int nPdfIndex = static_cast<int>(GET_LESSON_INDEX(dwData));
-        HTREEITEM hFolder = m_treeCourse.GetParentItem(hItem);
-        if (hFolder == nullptr)
-            hFolder = hItem;
-
-        DisplayPdfCoversInFolder(hFolder, nPdfIndex);
+        SelectPdfFile(static_cast<int>(GET_LESSON_INDEX(dwData)));
         return;
     }
 
+    if (m_bPdfViewerActive)
+        ClosePdfViewer();
+
     DisplayPdfCoversInFolder(hItem, -1);
+    UpdatePdfTreeSelectionHighlight(-1);
 }
 
 void CTrainingDlg::UpdateContentButtons()
@@ -1229,10 +1323,7 @@ LRESULT CTrainingDlg::OnImageViewItemSelected(WPARAM wParam, LPARAM /*lParam*/)
 LRESULT CTrainingDlg::OnPdfCoverItemSelected(WPARAM wParam, LPARAM /*lParam*/)
 {
     const int nPdfIndex = static_cast<int>(wParam);
-    if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
-        return 0;
-
-    OpenPdfViewer(nPdfIndex);
+    SelectPdfFile(nPdfIndex);
     return 0;
 }
 
@@ -1241,13 +1332,31 @@ LRESULT CTrainingDlg::OnPdfViewerBackToList(WPARAM /*wParam*/, LPARAM /*lParam*/
     if (!m_bPdfListMode)
         return 0;
 
+    const int nPrevSelected = m_nSelectedPdfIndex;
     ClosePdfViewer();
 
-    m_staticTitle.SetWindowText(L"PDF 보기");
+    if (nPrevSelected >= 0 && nPrevSelected < m_arrPdfFiles.GetSize())
+    {
+        HTREEITEM hRoot = m_treeCourse.GetRootItem();
+        HTREEITEM hPdfItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPrevSelected);
+        if (hPdfItem != nullptr)
+        {
+            HTREEITEM hFolder = m_treeCourse.GetParentItem(hPdfItem);
+            if (hFolder != nullptr)
+                DisplayPdfCoversInFolder(hFolder, nPrevSelected);
+        }
+        SelectPdfTreeItemByIndex(nPrevSelected);
+        m_pdfCoverView.SetSelectedPdfIndex(nPrevSelected);
+    }
+    else
+    {
+        m_staticTitle.SetWindowText(L"PDF 보기");
+    }
+
     m_editDescription.SetWindowText(
-        L"좌측 트리에서 폴더를 선택하세요.\n\n"
-        L"오른쪽에는 해당 폴더의 PDF 표지(1페이지)와 파일명이 카드 형태로 표시됩니다.\n"
-        L"표지 또는 파일명을 클릭하면 내부 PDF 뷰어에서 전체 페이지를 볼 수 있습니다.");
+        L"좌측 목록에서 PDF 파일명을 클릭하거나, 폴더를 선택한 뒤 표지를 클릭하세요.\n\n"
+        L"PDF 파일명을 클릭하면 즉시 내부 뷰어에서 열리고,\n"
+        L"폴더를 선택하면 해당 폴더의 PDF 표지(1페이지)가 카드 형태로 표시됩니다.");
 
     return 0;
 }

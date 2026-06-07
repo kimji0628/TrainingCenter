@@ -26,6 +26,7 @@ protected:
     int m_nCurrentPage;
 
     CArray<HBITMAP> m_arrThumbBitmaps;
+    CArray<int> m_arrThumbLruOrder;
     CArray<double> m_arrPageWidths;
     CArray<double> m_arrPageHeights;
 
@@ -44,16 +45,24 @@ protected:
     CButton m_btnZoomIn;
     CButton m_btnZoomOut;
     CStatic m_staticPageInfo;
+    CScrollBar m_thumbScrollbar;
 
     CRect m_rcToolbar;
     CRect m_rcThumbPane;
+    CRect m_rcThumbContent;
+    CRect m_rcThumbScrollBar;
     CRect m_rcPagePane;
 
     void FreeThumbnails();
     void ResetViewerState();
-    void BuildThumbnails();
+    void InitThumbCache();
+    void EnsureThumbBitmap(int nPage);
+    void TouchThumbLru(int nPage);
+    void PruneThumbCache();
+    void GetVisibleThumbPageRange(int& nFirstPage, int& nLastPage) const;
     void UpdateLayoutRects();
     void LayoutToolbarButtons();
+    void LayoutThumbScrollbar();
     void CreateToolbarButtons();
     void UpdatePageInfoLabel();
     int GetPageRenderWidth() const;
@@ -61,6 +70,10 @@ protected:
     int GetThumbRenderWidth() const;
     int GetThumbItemHeight() const;
     int GetThumbContentHeight() const;
+    void ClampThumbScrollY();
+    void UpdateThumbScrollbar();
+    void ScrollThumbsByPixels(int nDeltaPx);
+    void ScrollThumbsByWheel(short zDelta);
     void RenderCurrentPage(BOOL bPreserveZoom = FALSE);
     void SetCurrentPage(int nPage);
     void GoToAdjacentPage(int nDirection);
@@ -80,6 +93,7 @@ protected:
     void EnsureThumbVisible(int nPage);
     void DrawThumbnails(CDC& dc);
     void DrawPage(CDC& dc);
+    void HandleThumbScroll(UINT nSBCode, UINT nPos);
 
     afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnPaint();
@@ -89,6 +103,7 @@ protected:
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+    afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
     afx_msg void OnBtnBack();
     afx_msg void OnBtnPrevPage();
     afx_msg void OnBtnNextPage();
