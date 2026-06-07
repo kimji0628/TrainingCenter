@@ -55,7 +55,9 @@ BOOL CTrainingCourse::LoadJson(const CStringW& strFilePath)
 
             lesson.m_strTitle       = TrainingUtil::JsonGetStringW(jLesson, "Title");
             lesson.m_strDescription = TrainingUtil::JsonGetStringW(jLesson, "Description");
-            lesson.m_strYoutubeUrl  = TrainingUtil::JsonGetStringW(jLesson, "YoutubeUrl");
+            lesson.m_strVideo = TrainingUtil::JsonGetStringW(jLesson, "Video");
+            if (lesson.m_strVideo.IsEmpty())
+                lesson.m_strVideo = TrainingUtil::JsonGetStringW(jLesson, "YoutubeUrl");
             lesson.m_strPdfFile     = TrainingUtil::JsonGetStringW(jLesson, "PdfFile");
             lesson.m_strImageFile   = TrainingUtil::JsonGetStringW(jLesson, "ImageFile");
 

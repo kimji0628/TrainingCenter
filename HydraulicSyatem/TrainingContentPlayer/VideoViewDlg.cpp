@@ -332,6 +332,19 @@ void CVideoViewDlg::SetupVirtualHost()
         COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
 }
 
+void CVideoViewDlg::SetupMediaVirtualHost()
+{
+    Microsoft::WRL::ComPtr<ICoreWebView2_3> spWebView3;
+    if (FAILED(m_spWebView.As(&spWebView3)) || !spWebView3)
+        return;
+
+    CStringW strAppDir = TrainingUtil::GetAppDirectory();
+    spWebView3->SetVirtualHostNameToFolderMapping(
+        L"trainingcontentplayer.media",
+        strAppDir,
+        COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+}
+
 void CVideoViewDlg::OnNavigationCompleted(ICoreWebView2NavigationCompletedEventArgs* pArgs)
 {
     if (m_bWaitingForBlank)
@@ -356,6 +369,7 @@ void CVideoViewDlg::ConfigureWebView()
         return;
 
     SetupVirtualHost();
+    SetupMediaVirtualHost();
 
     Microsoft::WRL::ComPtr<ICoreWebView2Settings> spSettings;
     if (SUCCEEDED(m_spWebView->get_Settings(&spSettings)) && spSettings)
@@ -423,10 +437,17 @@ void CVideoViewDlg::LoadPlayerPage(const CStringW& strUrl)
     m_bHasActiveVideo = TRUE;
 
     CStringW strPlayerUrl;
-    if (TrainingUtil::PrepareYoutubePlayerPage(strUrl, strPlayerUrl))
+    if (TrainingUtil::IsUrlVideo(strUrl))
+    {
+        if (TrainingUtil::PrepareYoutubePlayerPage(strUrl, strPlayerUrl))
+            m_spWebView->Navigate(strPlayerUrl);
+        else
+            m_spWebView->Navigate(strUrl);
+    }
+    else if (TrainingUtil::PrepareLocalVideoPlayerPage(strUrl, strPlayerUrl))
+    {
         m_spWebView->Navigate(strPlayerUrl);
-    else
-        m_spWebView->Navigate(strUrl);
+    }
 }
 
 void CVideoViewDlg::NavigateToUrl(const CStringW& strUrl)

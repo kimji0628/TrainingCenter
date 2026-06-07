@@ -34,7 +34,8 @@ namespace
     }
 }
 CPdfViewerCtrl::CPdfViewerCtrl()
-    : m_nPageCount(0)
+    : m_bEmbeddedPreview(FALSE)
+    , m_nPageCount(0)
     , m_nCurrentPage(-1)
     , m_dBaseScale(1.0)
     , m_dZoomFactor(DEFAULT_ZOOM_FACTOR)
@@ -67,6 +68,15 @@ BOOL CPdfViewerCtrl::CreateOverPlaceholder(CWnd* pParent, CWnd* pPlaceholder, UI
         pParent,
         nHostId);
 }
+
+void CPdfViewerCtrl::SetEmbeddedPreviewMode(BOOL bEmbedded)
+{
+    m_bEmbeddedPreview = bEmbedded;
+    if (::IsWindow(m_btnBack.GetSafeHwnd()))
+        m_btnBack.ShowWindow(m_bEmbeddedPreview ? SW_HIDE : SW_SHOW);
+    LayoutToolbarButtons();
+}
+
 int CPdfViewerCtrl::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
     if (CWnd::OnCreate(lpCreateStruct) == -1)
@@ -548,7 +558,8 @@ void CPdfViewerCtrl::LayoutToolbarButtons()
             SWP_NOZORDER | SWP_NOACTIVATE);
         nLeft += nWidth + TOOLBAR_GAP;
     };
-    placeButton(m_btnBack, 140);
+    if (!m_bEmbeddedPreview)
+        placeButton(m_btnBack, 140);
     placeButton(m_btnPrevPage, 96);
     placeButton(m_btnNextPage, 96);
     placeButton(m_btnZoomOut, 72);

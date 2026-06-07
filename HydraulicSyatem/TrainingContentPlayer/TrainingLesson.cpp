@@ -13,7 +13,7 @@ CTrainingLesson::CTrainingLesson()
 CTrainingLesson::CTrainingLesson(const CTrainingLesson& other)
     : m_strTitle(other.m_strTitle)
     , m_strDescription(other.m_strDescription)
-    , m_strYoutubeUrl(other.m_strYoutubeUrl)
+    , m_strVideo(other.m_strVideo)
     , m_strPdfFile(other.m_strPdfFile)
     , m_strImageFile(other.m_strImageFile)
     , m_bCompleted(other.m_bCompleted)
@@ -26,7 +26,7 @@ CTrainingLesson& CTrainingLesson::operator=(const CTrainingLesson& other)
     {
         m_strTitle = other.m_strTitle;
         m_strDescription = other.m_strDescription;
-        m_strYoutubeUrl = other.m_strYoutubeUrl;
+        m_strVideo = other.m_strVideo;
         m_strPdfFile = other.m_strPdfFile;
         m_strImageFile = other.m_strImageFile;
         m_bCompleted = other.m_bCompleted;

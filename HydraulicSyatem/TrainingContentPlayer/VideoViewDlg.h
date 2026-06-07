@@ -48,6 +48,7 @@ protected:
     void ShowInitError();
     void ConfigureWebView();
     void SetupVirtualHost();
+    void SetupMediaVirtualHost();
     BOOL WaitForWebViewReady(DWORD dwTimeoutMs);
     void PumpPendingMessages();
     void ClearIframeMedia();

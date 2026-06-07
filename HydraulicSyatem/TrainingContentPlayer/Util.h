@@ -63,6 +63,11 @@ namespace TrainingUtil
     // Write iframe player HTML and return https:// virtual host navigation URL
     BOOL PrepareYoutubePlayerPage(const CStringW& strUrl, CStringW& strNavigateUrl);
 
+    BOOL IsUrlVideo(const CStringW& strVideo);
+    BOOL IsSupportedLocalVideo(const CStringW& strVideo);
+    BOOL PrepareLocalVideoPlayerPage(const CStringW& strRelativePath, CStringW& strNavigateUrl);
+    CStringW GetVideoMediaVirtualHostUrl(const CStringW& strRelativePath);
+
     // Resolve installed Edge WebView2 runtime folder (empty if not found)
     CStringW GetWebView2BrowserExecutableFolder();
 }

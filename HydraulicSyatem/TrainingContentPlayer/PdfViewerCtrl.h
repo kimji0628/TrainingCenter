@@ -19,7 +19,10 @@ public:
     BOOL HandleMouseWheel(short zDelta, const CPoint& ptScreen);
     BOOL HandleKeyDown(UINT nChar);
 
+    void SetEmbeddedPreviewMode(BOOL bEmbedded);
+
 protected:
+    BOOL m_bEmbeddedPreview;
     PdfRenderEngine::PdfDocument m_doc;
     CStringW m_strPdfPath;
     int m_nPageCount;

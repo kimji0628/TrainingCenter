@@ -19,6 +19,8 @@
 #define IDC_BTN_COMPLETE                1010
 #define IDC_STATIC_IMAGE_VIEW           1011
 #define IDC_BTN_RELOAD                  1012
+#define IDC_BTN_QUIZ_GEN                1030
+#define IDC_QUIZGEN_HOST                1031
 #define IDC_IMAGE_VIEW_HOST             1013
 #define IDC_BTN_START                   1014
 #define IDC_START_ICON                  1015
@@ -37,13 +39,34 @@
 #define IDC_PDF_STATIC_PAGE_INFO        1028
 #define IDC_PDF_THUMB_SCROLL            1029
 
+#define IDC_QUIZGEN_PDF_LABEL           1100
+#define IDC_QUIZGEN_PDF_COMBO           1101
+#define IDC_QUIZGEN_BTN_SELECT_PDF      1102
+#define IDC_QUIZGEN_RADIO_ALL_PAGES     1103
+#define IDC_QUIZGEN_RADIO_PAGE_RANGE    1104
+#define IDC_QUIZGEN_PAGE_START          1105
+#define IDC_QUIZGEN_PAGE_END            1106
+#define IDC_QUIZGEN_PAGE_START_LABEL    1107
+#define IDC_QUIZGEN_PAGE_END_LABEL      1108
+#define IDC_QUIZGEN_COUNT_LABEL         1109
+#define IDC_QUIZGEN_COUNT_EDIT          1110
+#define IDC_QUIZGEN_BTN_GENERATE        1111
+#define IDC_QUIZGEN_PREVIEW_LABEL       1112
+#define IDC_QUIZGEN_QUESTION_LABEL      1113
+#define IDC_QUIZGEN_PDF_PREVIEW         1114
+#define IDC_QUIZGEN_RICHEDIT            1115
+#define IDC_QUIZGEN_BTN_USE             1116
+#define IDC_QUIZGEN_BTN_REGENERATE      1117
+#define IDC_QUIZGEN_BTN_ADD_MORE        1118
+#define IDC_QUIZGEN_BTN_SAVE            1119
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1030
+#define _APS_NEXT_CONTROL_VALUE         1120
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

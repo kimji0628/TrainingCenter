@@ -117,6 +117,159 @@ namespace
 
         return nullptr;
     }
+
+    CStringW FormatLessonTreeItemText(const CTrainingLesson& lesson)
+    {
+        CStringW strItemText = lesson.m_strTitle;
+
+        if (!lesson.m_strVideo.IsEmpty())
+        {
+            const CStringW strPrefix = TrainingUtil::IsUrlVideo(lesson.m_strVideo)
+                ? L"\u25B6 "      // ▶ YouTube / URL
+                : L"\U0001F3AC "; // 🎬 로컬 동영상
+            strItemText = strPrefix + strItemText;
+        }
+
+        if (lesson.m_bCompleted)
+            strItemText = L"[완료] " + strItemText;
+
+        return strItemText;
+    }
+
+    int MeasureToolbarButtonWidth(CWnd* pParent, CWnd* pButton)
+    {
+        if (pParent == nullptr || pButton == nullptr ||
+            !::IsWindow(pButton->GetSafeHwnd()))
+        {
+            return 90;
+        }
+
+        CStringW strText;
+        pButton->GetWindowText(strText);
+        if (strText.IsEmpty())
+            return 90;
+
+        CClientDC dc(pParent);
+        CFont* pFont = pButton->GetFont();
+        if (pFont == nullptr)
+            pFont = pParent->GetFont();
+
+        CFont* pOld = dc.SelectObject(pFont);
+        CSize sz = dc.GetTextExtent(strText);
+        dc.SelectObject(pOld);
+
+        return static_cast<int>(sz.cx * 1.5) + 28;
+    }
+
+    int MeasureToolbarGap(int nButtonWidth)
+    {
+        return max(12, nButtonWidth / 4);
+    }
+
+    void LayoutToolbarButtons(
+        CWnd* pParent,
+        const UINT* pButtonIds,
+        int nButtonCount,
+        int nContentLeft,
+        int nContentWidth,
+        int nBtnY,
+        int nBtnHeight)
+    {
+        if (pParent == nullptr || pButtonIds == nullptr || nButtonCount <= 0)
+            return;
+
+        CArray<int> arrWidths;
+        arrWidths.SetSize(nButtonCount);
+
+        int nTotalWidth = 0;
+        int nMaxWidth = 0;
+        for (int i = 0; i < nButtonCount; ++i)
+        {
+            CWnd* pButton = pParent->GetDlgItem(pButtonIds[i]);
+            const int nWidth = MeasureToolbarButtonWidth(pParent, pButton);
+            arrWidths[i] = nWidth;
+            nTotalWidth += nWidth;
+            nMaxWidth = max(nMaxWidth, nWidth);
+        }
+
+        const int nGap = MeasureToolbarGap(nMaxWidth);
+        nTotalWidth += nGap * (nButtonCount - 1);
+
+        int nRowCount = 1;
+        if (nTotalWidth > nContentWidth)
+            nRowCount = 2;
+
+        int nBtnIndex = 0;
+        for (int nRow = 0; nRow < nRowCount && nBtnIndex < nButtonCount; ++nRow)
+        {
+            const int nRowY = nBtnY + nRow * (nBtnHeight + 8);
+            int nBtnX = nContentLeft;
+            int nRowUsed = 0;
+
+            while (nBtnIndex < nButtonCount)
+            {
+                const int nWidth = arrWidths[nBtnIndex];
+                const int nNeed = (nRowUsed == 0) ? nWidth : (nGap + nWidth);
+
+                if (nRowCount > 1 && nRowUsed > 0 &&
+                    (nBtnX - nContentLeft) + nNeed > nContentWidth)
+                {
+                    break;
+                }
+
+                if (nRowCount == 1 && nBtnX + nWidth > nContentLeft + nContentWidth)
+                    break;
+
+                CWnd* pButton = pParent->GetDlgItem(pButtonIds[nBtnIndex]);
+                if (pButton != nullptr && pButton->GetSafeHwnd() != nullptr)
+                {
+                    if (nRowUsed > 0)
+                        nBtnX += nGap;
+                    pButton->SetWindowPos(
+                        nullptr,
+                        nBtnX,
+                        nRowY,
+                        nWidth,
+                        nBtnHeight,
+                        SWP_NOZORDER | SWP_NOACTIVATE);
+                    nBtnX += nWidth;
+                    nRowUsed += nNeed;
+                }
+
+                ++nBtnIndex;
+            }
+        }
+    }
+
+    int GetToolbarBottomY(
+        const UINT* pButtonIds,
+        int nButtonCount,
+        CWnd* pParent,
+        int nContentWidth,
+        int nBtnY,
+        int nBtnHeight)
+    {
+        if (pButtonIds == nullptr || nButtonCount <= 0)
+            return nBtnY + nBtnHeight;
+
+        int nMaxWidth = 0;
+        int nTotalWidth = 0;
+        for (int i = 0; i < nButtonCount; ++i)
+        {
+            CWnd* pButton = pParent->GetDlgItem(pButtonIds[i]);
+            const int nWidth = MeasureToolbarButtonWidth(pParent, pButton);
+            nTotalWidth += nWidth;
+            nMaxWidth = max(nMaxWidth, nWidth);
+        }
+
+        const int nGap = MeasureToolbarGap(nMaxWidth);
+        nTotalWidth += nGap * (nButtonCount - 1);
+
+        if (nTotalWidth > nContentWidth)
+            return nBtnY + (nBtnHeight + 8) + nBtnHeight;
+
+        return nBtnY + nBtnHeight;
+    }
 }
 
 // ============================================================================
@@ -131,6 +284,7 @@ CTrainingDlg::CTrainingDlg(CWnd* pParent)
     , m_bPdfListMode(FALSE)
     , m_bPdfViewerActive(FALSE)
     , m_bImageListMode(FALSE)
+    , m_bQuizGenMode(FALSE)
     , m_bSuppressTreeSelChange(FALSE)
     , m_bExitCleanupDone(FALSE)
     , m_bExitConfirmShowing(FALSE)
@@ -152,6 +306,7 @@ BEGIN_MESSAGE_MAP(CTrainingDlg, CDialogEx)
     ON_BN_CLICKED(IDC_BTN_YOUTUBE, &CTrainingDlg::OnBnClickedBtnYoutube)
     ON_BN_CLICKED(IDC_BTN_PDF, &CTrainingDlg::OnBnClickedBtnPdf)
     ON_BN_CLICKED(IDC_BTN_IMAGE, &CTrainingDlg::OnBnClickedBtnImage)
+    ON_BN_CLICKED(IDC_BTN_QUIZ_GEN, &CTrainingDlg::OnBnClickedBtnQuizGen)
     ON_BN_CLICKED(IDC_BTN_NEXT, &CTrainingDlg::OnBnClickedBtnNext)
     ON_BN_CLICKED(IDC_BTN_PREV, &CTrainingDlg::OnBnClickedBtnPrev)
     ON_BN_CLICKED(IDC_BTN_COMPLETE, &CTrainingDlg::OnBnClickedBtnComplete)
@@ -173,6 +328,7 @@ void CTrainingDlg::SetupKoreanUI()
     GetDlgItem(IDC_BTN_YOUTUBE)->SetWindowText(L"영상보기");
     GetDlgItem(IDC_BTN_PDF)->SetWindowText(L"PDF보기");
     GetDlgItem(IDC_BTN_IMAGE)->SetWindowText(L"이미지보기");
+    GetDlgItem(IDC_BTN_QUIZ_GEN)->SetWindowText(L"문제생성");
     GetDlgItem(IDC_BTN_NEXT)->SetWindowText(L"다음");
     GetDlgItem(IDC_BTN_PREV)->SetWindowText(L"이전");
     GetDlgItem(IDC_BTN_COMPLETE)->SetWindowText(L"학습완료");
@@ -185,6 +341,7 @@ void CTrainingDlg::SetupKoreanUI()
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_YOUTUBE));
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_PDF));
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_IMAGE));
+    TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_QUIZ_GEN));
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_NEXT));
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_PREV));
     TrainingUtil::ApplyKoreanFont(GetDlgItem(IDC_BTN_COMPLETE));
@@ -296,6 +453,16 @@ BOOL CTrainingDlg::OnInitDialog()
     }
     m_pdfViewer.ShowWindow(SW_HIDE);
 
+    if (!m_quizGenView.CreateOverPlaceholder(this, &m_staticThumbnail, IDC_QUIZGEN_HOST))
+    {
+        AfxMessageBox(
+            L"문제생성 화면 초기화에 실패했습니다.",
+            MB_OK | MB_ICONERROR);
+        EndDialog(IDCANCEL);
+        return FALSE;
+    }
+    m_quizGenView.ShowWindow(SW_HIDE);
+
     RefreshPdfFileList();
     RefreshImageFileList();
 
@@ -346,6 +513,22 @@ BOOL CTrainingDlg::PreTranslateMessage(MSG* pMsg)
         {
             CPoint pt(GET_X_LPARAM(pMsg->lParam), GET_Y_LPARAM(pMsg->lParam));
             if (m_pdfViewer.HandleMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
+                return TRUE;
+        }
+    }
+
+    if (m_bQuizGenMode && ::IsWindow(m_quizGenView.GetSafeHwnd()))
+    {
+        if (pMsg->message == WM_KEYDOWN)
+        {
+            if (m_quizGenView.HandlePreviewKeyDown(static_cast<UINT>(pMsg->wParam)))
+                return TRUE;
+        }
+
+        if (pMsg->message == WM_MOUSEWHEEL)
+        {
+            CPoint pt(GET_X_LPARAM(pMsg->lParam), GET_Y_LPARAM(pMsg->lParam));
+            if (m_quizGenView.HandlePreviewMouseWheel(GET_WHEEL_DELTA_WPARAM(pMsg->wParam), pt))
                 return TRUE;
         }
     }
@@ -406,12 +589,19 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
     const int nTitleHeight = 24;
     const int nDescTop = nTitleTop + nTitleHeight + 6;
     const int nDescHeight = GetDescriptionMinHeight();
-    const int nBtnWidth = 110;
     const int nBtnHeight = 28;
     const int nBtnY = nDescTop + nDescHeight + 8;
     const int nCompleteWidth = 110;
     const int nCompleteHeight = 28;
-    const int nThumbTop = nBtnY + nBtnHeight + 10;
+
+    const UINT arrButtonIds[] = {
+        IDC_BTN_YOUTUBE, IDC_BTN_PDF, IDC_BTN_IMAGE, IDC_BTN_QUIZ_GEN,
+        IDC_BTN_RELOAD, IDC_BTN_NEXT, IDC_BTN_PREV
+    };
+    const int nBtnCount = static_cast<int>(sizeof(arrButtonIds) / sizeof(arrButtonIds[0]));
+    const int nToolbarBottom = GetToolbarBottomY(
+        arrButtonIds, nBtnCount, this, nContentWidth, nBtnY, nBtnHeight);
+    const int nThumbTop = nToolbarBottom + 10;
     const int nThumbBottom = max(nThumbTop + 100, cy - nMargin - nCompleteHeight - 10);
 
     m_treeCourse.SetWindowPos(
@@ -426,23 +616,14 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
         nullptr, nContentLeft, nDescTop, nContentWidth, nDescHeight,
         SWP_NOZORDER | SWP_NOACTIVATE);
 
-    const UINT arrButtonIds[] = {
-        IDC_BTN_YOUTUBE, IDC_BTN_PDF, IDC_BTN_IMAGE,
-        IDC_BTN_RELOAD, IDC_BTN_NEXT, IDC_BTN_PREV
-    };
-
-    int nBtnX = nContentLeft;
-    for (UINT nButtonId : arrButtonIds)
-    {
-        CWnd* pButton = GetDlgItem(nButtonId);
-        if (pButton != nullptr && pButton->GetSafeHwnd() != nullptr)
-        {
-            pButton->SetWindowPos(
-                nullptr, nBtnX, nBtnY, nBtnWidth, nBtnHeight,
-                SWP_NOZORDER | SWP_NOACTIVATE);
-        }
-        nBtnX += nBtnWidth + 9;
-    }
+    LayoutToolbarButtons(
+        this,
+        arrButtonIds,
+        nBtnCount,
+        nContentLeft,
+        nContentWidth,
+        nBtnY,
+        nBtnHeight);
 
     CWnd* pComplete = GetDlgItem(IDC_BTN_COMPLETE);
     if (pComplete != nullptr && pComplete->GetSafeHwnd() != nullptr)
@@ -480,7 +661,39 @@ void CTrainingDlg::LayoutControls(int cx, int cy)
         nThumbBottom - nThumbTop,
         SWP_NOZORDER | SWP_NOACTIVATE);
 
+    m_quizGenView.SetWindowPos(
+        nullptr,
+        nContentLeft,
+        nThumbTop,
+        nContentWidth,
+        nThumbBottom - nThumbTop,
+        SWP_NOZORDER | SWP_NOACTIVATE);
+
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.Relayout();
+
     CVideoViewDlg::SyncHostArea(&m_imageView);
+}
+
+void CTrainingDlg::BringQuizGenToFront()
+{
+    CVideoViewDlg::HideActive();
+
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_pdfViewer.GetSafeHwnd()))
+        m_pdfViewer.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_imageView.GetSafeHwnd()))
+        m_imageView.ShowWindow(SW_HIDE);
+
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+    {
+        m_quizGenView.SetWindowPos(
+            &CWnd::wndTop,
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+        m_quizGenView.Relayout();
+    }
 }
 
 void CTrainingDlg::BringImageViewToFront()
@@ -489,6 +702,8 @@ void CTrainingDlg::BringImageViewToFront()
 
     if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
         m_pdfCoverView.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.ShowWindow(SW_HIDE);
 
     if (!::IsWindow(m_imageView.GetSafeHwnd()))
         return;
@@ -505,6 +720,8 @@ void CTrainingDlg::BringPdfCoverToFront()
 
     if (::IsWindow(m_imageView.GetSafeHwnd()))
         m_imageView.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.ShowWindow(SW_HIDE);
 
     if (::IsWindow(m_pdfViewer.GetSafeHwnd()))
         m_pdfViewer.ShowWindow(SW_HIDE);
@@ -524,6 +741,8 @@ void CTrainingDlg::BringPdfViewerToFront()
 
     if (::IsWindow(m_imageView.GetSafeHwnd()))
         m_imageView.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.ShowWindow(SW_HIDE);
 
     if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
         m_pdfCoverView.ShowWindow(SW_HIDE);
@@ -601,7 +820,7 @@ void CTrainingDlg::UpdatePdfTreeSelectionHighlightRecursive(
 
 void CTrainingDlg::UpdatePdfTreeSelectionHighlight(int nSelectedPdfIndex)
 {
-    if (!m_bPdfListMode)
+    if (!m_bPdfListMode && !m_bQuizGenMode)
         return;
 
     HTREEITEM hRoot = m_treeCourse.GetRootItem();
@@ -682,10 +901,7 @@ void CTrainingDlg::BuildCourseTree()
         for (int l = 0; l < course.m_Lessons.GetSize(); ++l)
         {
             const CTrainingLesson& lesson = course.m_Lessons[l];
-            CStringW strItemText = lesson.m_strTitle;
-
-            if (lesson.m_bCompleted)
-                strItemText = L"[완료] " + strItemText;
+            const CStringW strItemText = FormatLessonTreeItemText(lesson);
 
             HTREEITEM hLesson = m_treeCourse.InsertItem(strItemText, hCourse, TVI_LAST);
             m_treeCourse.SetItemData(hLesson, MAKE_TREE_DATA(c, l));
@@ -866,11 +1082,12 @@ void CTrainingDlg::BuildImageTree()
 
 void CTrainingDlg::ShowCourseTree()
 {
-    if (!m_bPdfListMode && !m_bImageListMode)
+    if (!m_bPdfListMode && !m_bImageListMode && !m_bQuizGenMode)
         return;
 
     m_bPdfListMode = FALSE;
     m_bImageListMode = FALSE;
+    m_bQuizGenMode = FALSE;
     m_bPdfViewerActive = FALSE;
     m_nSelectedPdfIndex = -1;
     m_pdfViewer.CloseDocument();
@@ -878,6 +1095,8 @@ void CTrainingDlg::ShowCourseTree()
         m_pdfCoverView.ShowWindow(SW_HIDE);
     if (::IsWindow(m_pdfViewer.GetSafeHwnd()))
         m_pdfViewer.ShowWindow(SW_HIDE);
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.ShowWindow(SW_HIDE);
     BuildCourseTree();
 
     if (m_nCurrentCourseIndex >= 0 && m_nCurrentLessonIndex >= 0)
@@ -905,7 +1124,7 @@ void CTrainingDlg::ShowCourseTree()
 
 void CTrainingDlg::EnsureCourseTree()
 {
-    if (m_bPdfListMode || m_bImageListMode)
+    if (m_bPdfListMode || m_bImageListMode || m_bQuizGenMode)
         ShowCourseTree();
 }
 
@@ -925,6 +1144,7 @@ void CTrainingDlg::ShowImageTree()
 
     m_bPdfListMode = FALSE;
     m_bImageListMode = TRUE;
+    m_bQuizGenMode = FALSE;
     m_nSelectedPdfIndex = -1;
     BuildImageTree();
     BringImageViewToFront();
@@ -952,6 +1172,7 @@ void CTrainingDlg::ShowPdfTree()
 
     m_bPdfListMode = TRUE;
     m_bImageListMode = FALSE;
+    m_bQuizGenMode = FALSE;
     m_bPdfViewerActive = FALSE;
     m_pdfViewer.CloseDocument();
     BuildPdfTree();
@@ -969,6 +1190,72 @@ void CTrainingDlg::ShowPdfTree()
 
     HTREEITEM hSelected = m_treeCourse.GetSelectedItem();
     OnPdfTreeItemSelected(hSelected);
+}
+
+void CTrainingDlg::ShowQuizGenView()
+{
+    CVideoViewDlg::HideActive();
+    RefreshPdfFileList();
+
+    if (m_arrPdfFiles.GetSize() == 0)
+    {
+        AfxMessageBox(
+            L"PDF 폴더에 PDF 파일이 없습니다.\n"
+            L"문제 생성을 위해 .\\PDF 폴더에 PDF 파일을 추가하세요.",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    m_bPdfListMode = FALSE;
+    m_bImageListMode = FALSE;
+    m_bQuizGenMode = TRUE;
+    m_bPdfViewerActive = FALSE;
+    m_nSelectedPdfIndex = -1;
+    m_pdfViewer.CloseDocument();
+
+    BuildPdfTree();
+    m_quizGenView.SetPdfFileList(m_arrPdfFiles);
+    BringQuizGenToFront();
+
+    m_staticTitle.SetWindowText(L"문제 생성");
+    m_editDescription.SetWindowText(
+        L"PDF를 선택하고 출제 페이지 범위·문제 개수를 지정한 뒤 [문제 생성]을 누르세요.\n\n"
+        L"좌측 PDF 목록 또는 상단 콤보박스에서 PDF를 선택할 수 있습니다.\n"
+        L"현재 단계는 UI 구조 설계이며, 실제 AI 문제 생성은 이후 단계에서 구현됩니다.");
+
+    HTREEITEM hSelected = m_treeCourse.GetSelectedItem();
+    OnQuizGenTreeItemSelected(hSelected);
+}
+
+void CTrainingDlg::OnQuizGenTreeItemSelected(HTREEITEM hItem)
+{
+    if (!m_bQuizGenMode || hItem == nullptr)
+        return;
+
+    const DWORD_PTR dwData = m_treeCourse.GetItemData(hItem);
+    if (IS_PDF_TREE_ITEM(dwData))
+        SelectQuizGenPdfIndex(static_cast<int>(GET_LESSON_INDEX(dwData)));
+}
+
+void CTrainingDlg::SelectQuizGenPdfIndex(int nPdfIndex)
+{
+    if (!m_bQuizGenMode || nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+        return;
+
+    m_nSelectedPdfIndex = nPdfIndex;
+    m_quizGenView.SelectPdfByIndex(nPdfIndex);
+
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    HTREEITEM hPdfItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPdfIndex);
+    if (hPdfItem != nullptr)
+    {
+        m_bSuppressTreeSelChange = TRUE;
+        m_treeCourse.SelectItem(hPdfItem);
+        m_treeCourse.EnsureVisible(hPdfItem);
+        m_bSuppressTreeSelChange = FALSE;
+    }
+
+    UpdatePdfTreeSelectionHighlight(nPdfIndex);
 }
 
 void CTrainingDlg::CollectPdfIndicesInFolder(
@@ -1042,6 +1329,53 @@ void CTrainingDlg::OnPdfTreeItemSelected(HTREEITEM hItem)
     UpdatePdfTreeSelectionHighlight(-1);
 }
 
+void CTrainingDlg::PlayLessonVideo(int nCourseIndex, int nLessonIndex)
+{
+    if (m_bPdfViewerActive)
+        ClosePdfViewer();
+    if (::IsWindow(m_pdfCoverView.GetSafeHwnd()))
+        m_pdfCoverView.ShowWindow(SW_HIDE);
+
+    const CTrainingLesson* pLesson = m_Manager.GetLesson(nCourseIndex, nLessonIndex);
+    if (pLesson == nullptr || pLesson->m_strVideo.IsEmpty())
+    {
+        AfxMessageBox(
+            L"이 강의에는 등록된 동영상이 없습니다.",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    const CStringW& strVideo = pLesson->m_strVideo;
+    if (TrainingUtil::IsUrlVideo(strVideo))
+    {
+        LaunchUrl(strVideo);
+    }
+    else
+    {
+        if (!TrainingUtil::IsSupportedLocalVideo(strVideo))
+        {
+            AfxMessageBox(
+                L"지원하지 않는 동영상 형식입니다.",
+                MB_OK | MB_ICONWARNING);
+            return;
+        }
+
+        CStringW strFullPath = TrainingUtil::ResolveAppPath(strVideo);
+        if (GetFileAttributesW(strFullPath) == INVALID_FILE_ATTRIBUTES)
+        {
+            AfxMessageBox(
+                L"동영상 파일을 찾을 수 없습니다.\n\n" + strVideo,
+                MB_OK | MB_ICONWARNING);
+            return;
+        }
+
+        CVideoViewDlg::PlayVideo(this, strVideo, &m_imageView);
+    }
+
+    m_staticTitle.SetWindowText(pLesson->m_strTitle);
+    m_editDescription.SetWindowText(pLesson->m_strDescription);
+}
+
 void CTrainingDlg::UpdateContentButtons()
 {
     const CTrainingLesson* pLesson = m_Manager.GetLesson(
@@ -1049,9 +1383,10 @@ void CTrainingDlg::UpdateContentButtons()
 
     BOOL bHasLesson = (pLesson != nullptr);
     GetDlgItem(IDC_BTN_YOUTUBE)->EnableWindow(
-        bHasLesson && !pLesson->m_strYoutubeUrl.IsEmpty());
+        bHasLesson && !pLesson->m_strVideo.IsEmpty());
     GetDlgItem(IDC_BTN_PDF)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
     GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(m_arrImageFiles.GetSize() > 0);
+    GetDlgItem(IDC_BTN_QUIZ_GEN)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
 }
 
 void CTrainingDlg::DisplayImageByIndex(int nImageIndex)
@@ -1147,17 +1482,15 @@ void CTrainingDlg::UpdateTreeItemState(int nCourseIndex, int nLessonIndex)
 
     const CTrainingLesson* pLesson = m_Manager.GetLesson(nCourseIndex, nLessonIndex);
     if (pLesson != nullptr)
-    {
-        CStringW strText = pLesson->m_strTitle;
-        if (pLesson->m_bCompleted)
-            strText = L"[완료] " + strText;
-        m_treeCourse.SetItemText(hLesson, strText);
-    }
+        m_treeCourse.SetItemText(hLesson, FormatLessonTreeItemText(*pLesson));
 }
 
 void CTrainingDlg::DisplayLesson(int nCourseIndex, int nLessonIndex)
 {
     CVideoViewDlg::HideActive();
+
+    if (::IsWindow(m_quizGenView.GetSafeHwnd()))
+        m_quizGenView.ShowWindow(SW_HIDE);
 
     const CTrainingLesson* pLesson = m_Manager.GetLesson(nCourseIndex, nLessonIndex);
     if (pLesson == nullptr)
@@ -1193,6 +1526,7 @@ void CTrainingDlg::ClearLessonDisplay()
     GetDlgItem(IDC_BTN_YOUTUBE)->EnableWindow(FALSE);
     GetDlgItem(IDC_BTN_PDF)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
     GetDlgItem(IDC_BTN_IMAGE)->EnableWindow(m_arrImageFiles.GetSize() > 0);
+    GetDlgItem(IDC_BTN_QUIZ_GEN)->EnableWindow(m_arrPdfFiles.GetSize() > 0);
 }
 
 void CTrainingDlg::LoadThumbnail(const CStringW& strImagePath)
@@ -1403,6 +1737,8 @@ void CTrainingDlg::OnSelchangedTreeCourse(NMHDR* pNMHDR, LRESULT* pResult)
             OnImageTreeItemSelected(hItem);
         else if (m_bPdfListMode)
             OnPdfTreeItemSelected(hItem);
+        else if (m_bQuizGenMode)
+            OnQuizGenTreeItemSelected(hItem);
         else
         {
             int nCourseIndex = GET_COURSE_INDEX(dwData);
@@ -1419,11 +1755,7 @@ void CTrainingDlg::OnSelchangedTreeCourse(NMHDR* pNMHDR, LRESULT* pResult)
 void CTrainingDlg::OnBnClickedBtnYoutube()
 {
     EnsureCourseTree();
-
-    const CTrainingLesson* pLesson = m_Manager.GetLesson(
-        m_nCurrentCourseIndex, m_nCurrentLessonIndex);
-    if (pLesson != nullptr)
-        LaunchUrl(pLesson->m_strYoutubeUrl);
+    PlayLessonVideo(m_nCurrentCourseIndex, m_nCurrentLessonIndex);
 }
 
 void CTrainingDlg::OnBnClickedBtnPdf()
@@ -1434,6 +1766,11 @@ void CTrainingDlg::OnBnClickedBtnPdf()
 void CTrainingDlg::OnBnClickedBtnImage()
 {
     ShowImageTree();
+}
+
+void CTrainingDlg::OnBnClickedBtnQuizGen()
+{
+    ShowQuizGenView();
 }
 
 void CTrainingDlg::OnBnClickedBtnNext()

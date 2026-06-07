@@ -9,6 +9,7 @@
 #include "ImageViewCtrl.h"
 #include "PdfCoverViewCtrl.h"
 #include "PdfViewerCtrl.h"
+#include "QuizGenViewCtrl.h"
 
 
 
@@ -53,6 +54,7 @@ protected:
     CImageViewCtrl   m_imageView;
     CPdfCoverViewCtrl m_pdfCoverView;
     CPdfViewerCtrl m_pdfViewer;
+    CQuizGenViewCtrl m_quizGenView;
 
 
 
@@ -66,6 +68,8 @@ protected:
     BOOL m_bPdfViewerActive;
 
     BOOL m_bImageListMode;
+
+    BOOL m_bQuizGenMode;
 
     BOOL m_bSuppressTreeSelChange;
 
@@ -111,6 +115,8 @@ protected:
 
     void ShowImageTree();
 
+    void ShowQuizGenView();
+
     void EnsureCourseTree();
 
     void CollectPdfIndicesInFolder(HTREEITEM hFolderItem, CArray<int>& arrPdfIndices);
@@ -128,6 +134,10 @@ protected:
     void BringPdfViewerToFront();
     void OpenPdfViewer(int nPdfIndex);
     void ClosePdfViewer();
+
+    void BringQuizGenToFront();
+    void OnQuizGenTreeItemSelected(HTREEITEM hItem);
+    void SelectQuizGenPdfIndex(int nPdfIndex);
 
     void DisplayImageByIndex(int nImageIndex);
 
@@ -169,6 +179,8 @@ protected:
 
     void LaunchFile(const CStringW& strRelativePath);
 
+    void PlayLessonVideo(int nCourseIndex, int nLessonIndex);
+
 
 
     void UpdateNavigationButtons();
@@ -194,6 +206,8 @@ protected:
     afx_msg void OnBnClickedBtnPdf();
 
     afx_msg void OnBnClickedBtnImage();
+
+    afx_msg void OnBnClickedBtnQuizGen();
 
     afx_msg void OnBnClickedBtnNext();
 

@@ -4,7 +4,7 @@
     {
       "Title": "Introduction",
       "Description": "Aircraft Aerodynamics Overview\n\n항공역학은 공기와 항공기 표면 사이의 상호작용을 연구하는 학문입니다.\n\n비행 성능, 안정성, 연료 효율을 이해하기 위한 핵심 기초 과정입니다.",
-      "YoutubeUrl": "https://www.youtube.com/watch?v=p4VHMsIuPmk",
+      "Video": "https://www.youtube.com/watch?v=p4VHMsIuPmk",
       "PdfFile": "Pdf\\Intro.pdf",
       "ImageFile": "Images\\AeroIntro.png"
     },
@@ -63,6 +63,20 @@
       "YoutubeUrl": "",
       "PdfFile": "Pdf\\Quiz.pdf",
       "ImageFile": "Images\\AeroQuiz.png"
+    },
+    {
+      "Title": "0921",
+      "Description": "저장된 MP4 동영상 재생 테스트",
+      "Video": "Video\\0921.mp4",
+      "PdfFile": "",
+      "ImageFile": ""
+    },
+    {
+      "Title": "KBS",
+      "Description": "저장된 MP4 동영상 재생 테스트",
+      "Video": "Video\\KBS.mp4",
+      "PdfFile": "",
+      "ImageFile": ""
     }
   ]
 }

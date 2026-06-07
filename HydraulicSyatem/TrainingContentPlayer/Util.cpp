@@ -531,6 +531,80 @@ CStringW TrainingUtil::GetYoutubePlayerFolder()
     return CStringW(szFolder);
 }
 
+BOOL TrainingUtil::IsUrlVideo(const CStringW& strVideo)
+{
+    CStringW s = strVideo;
+    s.Trim();
+    s.MakeLower();
+    return s.Left(7) == L"http://" || s.Left(8) == L"https://";
+}
+
+BOOL TrainingUtil::IsSupportedLocalVideo(const CStringW& strVideo)
+{
+    CStringW s = strVideo;
+    s.Trim();
+    s.MakeLower();
+    return s.Right(4) == L".mp4" ||
+           s.Right(4) == L".avi" ||
+           s.Right(4) == L".wmv" ||
+           s.Right(4) == L".mov" ||
+           s.Right(4) == L".mkv";
+}
+
+CStringW TrainingUtil::GetVideoMediaVirtualHostUrl(const CStringW& strRelativePath)
+{
+    CStringW strUrl = L"https://trainingcontentplayer.media/";
+    CStringW strPath = strRelativePath;
+    strPath.Trim();
+    strPath.Replace(L'\\', L'/');
+    strUrl += strPath;
+    return strUrl;
+}
+
+BOOL TrainingUtil::PrepareLocalVideoPlayerPage(
+    const CStringW& strRelativePath,
+    CStringW& strNavigateUrl)
+{
+    strNavigateUrl.Empty();
+
+    CStringW strRelative = strRelativePath;
+    strRelative.Trim();
+    if (strRelative.IsEmpty())
+        return FALSE;
+
+    const CStringW strMediaUrl = GetVideoMediaVirtualHostUrl(strRelative);
+    CStringW strFolder = GetYoutubePlayerFolder();
+    CStringW strHtmlPath = strFolder + L"localplayer.html";
+
+    CStringW html;
+    html.Format(
+        L"<!DOCTYPE html><html><head><meta charset='utf-8'>"
+        L"<style>html,body{margin:0;padding:0;width:100%%;height:100%%;background:#000;overflow:hidden;}"
+        L"video{width:100%%;height:100%%;object-fit:contain;background:#000;}</style></head><body>"
+        L"<video controls autoplay playsinline src='%s'></video></body></html>",
+        strMediaUrl.GetString());
+
+    try
+    {
+        std::string strUtf8 = CStringWToUtf8(html);
+        CFile file;
+        if (!file.Open(strHtmlPath, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary))
+            return FALSE;
+
+        file.Write(strUtf8.data(), static_cast<UINT>(strUtf8.size()));
+        file.Close();
+    }
+    catch (...)
+    {
+        return FALSE;
+    }
+
+    strNavigateUrl.Format(
+        L"https://trainingcontentplayer.local/localplayer.html?t=%lu",
+        static_cast<unsigned long>(::GetTickCount()));
+    return TRUE;
+}
+
 BOOL TrainingUtil::PrepareYoutubePlayerPage(const CStringW& strUrl, CStringW& strNavigateUrl)
 {
     strNavigateUrl.Empty();

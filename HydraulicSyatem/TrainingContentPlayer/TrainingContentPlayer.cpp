@@ -29,6 +29,8 @@ BOOL CTrainingContentPlayerApp::InitInstance()
 
     CWinApp::InitInstance();
 
+    AfxInitRichEdit2();
+
     if (!AfxOleInit())
     {
         AfxMessageBox(L"COM 초기화에 실패했습니다.", MB_OK | MB_ICONERROR);
