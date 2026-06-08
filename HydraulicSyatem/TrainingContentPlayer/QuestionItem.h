@@ -3,22 +3,28 @@
 #include <vector>
 
 // ============================================================================
-// QuestionItem.h - AI 문제 생성 데이터 구조 (1단계: 구조만 준비)
+// QuestionItem.h - AI 문제 생성 / 기능 시험 데이터 구조
 // ============================================================================
 
 struct QUESTION_ITEM
 {
+    CStringW strId;
     int      nNo;
+    CStringW strCategory;
+    int      nSourcePage;
+    CStringW strCreated;
     CStringW strQuestion;
     CStringW strChoice1;
     CStringW strChoice2;
     CStringW strChoice3;
     CStringW strChoice4;
     CStringW strAnswer;
+    CStringW strExplain;
     BOOL     bUseFlag;
 
     QUESTION_ITEM()
         : nNo(0)
+        , nSourcePage(0)
         , bUseFlag(FALSE)
     {
     }
@@ -42,3 +48,6 @@ struct QUIZ_GEN_SETTINGS
     {
     }
 };
+
+CStringW FormatQuestionDisplayText(const QUESTION_ITEM& item);
+CStringW FormatAnswerChoiceLabel(const CStringW& strAnswerLetter);

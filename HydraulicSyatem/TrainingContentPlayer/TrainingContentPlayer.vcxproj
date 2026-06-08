@@ -71,7 +71,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)packages\Microsoft.Web.WebView2\build\native\x64;$(SolutionDir)ThirdParty\pdfium\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -104,7 +104,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)packages\Microsoft.Web.WebView2\build\native\x64;$(SolutionDir)ThirdParty\pdfium\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -126,6 +126,9 @@
     <ClInclude Include="PdfRenderEngine.h" />
     <ClInclude Include="PdfViewerCtrl.h" />
     <ClInclude Include="QuestionItem.h" />
+    <ClInclude Include="OpenAiConnectionTest.h" />
+    <ClInclude Include="QuestionTestLoader.h" />
+    <ClInclude Include="ScpConfigReader.h" />
     <ClInclude Include="QuizGenViewCtrl.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -145,6 +148,9 @@
     <ClCompile Include="PdfCoverViewCtrl.cpp" />
     <ClCompile Include="PdfRenderEngine.cpp" />
     <ClCompile Include="PdfViewerCtrl.cpp" />
+    <ClCompile Include="OpenAiConnectionTest.cpp" />
+    <ClCompile Include="QuestionTestLoader.cpp" />
+    <ClCompile Include="ScpConfigReader.cpp" />
     <ClCompile Include="QuizGenViewCtrl.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -174,6 +180,9 @@
     <None Include="..\..\Bin\Data\JapaneseBasic.json" />
     <None Include="..\..\Bin\Progress\Progress.json" />
     <None Include="res\TrainingContentPlayer.rc2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\Bin\Question\QuestionListForTest.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

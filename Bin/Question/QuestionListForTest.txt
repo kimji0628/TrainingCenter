@@ -1,0 +1,129 @@
+QSTART
+NO=1
+CATEGORY=항공기체
+SOURCE_PAGE=21
+QUESTION=다음 중 항공기 동체(Fuselage)의 주요 기능은?
+A=추력을 발생시킨다.
+B=승객과 화물을 탑재하고 각 구성품을 연결한다.
+C=양력을 발생시킨다.
+D=연료를 압축한다.
+ANSWER=B
+EXPLAIN=동체는 승객, 화물 및 각 구조물을 연결하는 기본 구조이다.
+QEND
+
+QSTART
+NO=2
+CATEGORY=항공기체
+SOURCE_PAGE=24
+QUESTION=다음 중 날개(Wing)의 주된 역할은?
+A=항력을 증가시킨다.
+B=양력을 발생시킨다.
+C=엔진을 냉각한다.
+D=연료를 저장한다.
+ANSWER=B
+EXPLAIN=날개는 비행 중 양력을 발생시키는 가장 중요한 구조이다.
+QEND
+
+QSTART
+NO=3
+CATEGORY=항공역학
+SOURCE_PAGE=31
+QUESTION=다음 중 받음각(Angle of Attack)의 정의는?
+A=기체축과 수평선 사이의 각도
+B=시위선과 상대풍 사이의 각도
+C=날개와 동체 사이의 각도
+D=추력선과 중력선 사이의 각도
+ANSWER=B
+EXPLAIN=받음각은 시위선과 상대풍이 이루는 각이다.
+QEND
+
+QSTART
+NO=4
+CATEGORY=항공역학
+SOURCE_PAGE=35
+QUESTION=실속(Stall)이 발생하는 가장 큰 원인은?
+A=속도가 너무 빠르기 때문이다.
+B=받음각이 임계받음각을 초과하기 때문이다.
+C=엔진 출력이 너무 크기 때문이다.
+D=무게가 가볍기 때문이다.
+ANSWER=B
+EXPLAIN=실속은 속도보다 임계받음각 초과가 직접적인 원인이다.
+QEND
+
+QSTART
+NO=5
+CATEGORY=항공전기
+SOURCE_PAGE=42
+QUESTION=다음 중 직류(DC)의 특징은?
+A=전류 방향이 주기적으로 바뀐다.
+B=전류 방향이 일정하다.
+C=주파수를 가진다.
+D=교류보다 변압이 쉽다.
+ANSWER=B
+EXPLAIN=직류는 시간에 따라 전류의 방향이 변하지 않는다.
+QEND
+
+QSTART
+NO=6
+CATEGORY=항공전기
+SOURCE_PAGE=48
+QUESTION=옴의 법칙은 무엇인가?
+A=V=IR
+B=P=IV²
+C=F=ma
+D=PV=nRT
+ANSWER=A
+EXPLAIN=전압(V)은 전류(I)와 저항(R)의 곱이다.
+QEND
+
+QSTART
+NO=7
+CATEGORY=항공유압
+SOURCE_PAGE=53
+QUESTION=릴리프 밸브(Relief Valve)의 기능은?
+A=역류를 방지한다.
+B=과도한 압력을 방출하여 계통을 보호한다.
+C=유압유를 저장한다.
+D=압력을 측정한다.
+ANSWER=B
+EXPLAIN=릴리프 밸브는 설정 압력 이상이 되면 압력을 방출한다.
+QEND
+
+QSTART
+NO=8
+CATEGORY=항공유압
+SOURCE_PAGE=58
+QUESTION=유압계통에서 작동유를 저장하는 장치는?
+A=Accumulator
+B=Reservoir
+C=Actuator
+D=Filter
+ANSWER=B
+EXPLAIN=Reservoir는 작동유를 저장하는 탱크이다.
+QEND
+
+QSTART
+NO=9
+CATEGORY=항공기관
+SOURCE_PAGE=65
+QUESTION=가스터빈엔진의 일반적인 공기 흐름 순서는?
+A=터빈→압축기→연소실→노즐
+B=압축기→연소실→터빈→노즐
+C=연소실→압축기→노즐→터빈
+D=노즐→압축기→연소실→터빈
+ANSWER=B
+EXPLAIN=공기는 압축기, 연소실, 터빈, 노즐 순으로 흐른다.
+QEND
+
+QSTART
+NO=10
+CATEGORY=항공기관
+SOURCE_PAGE=72
+QUESTION=프로펠러 피치(Pitch)를 증가시키면 일반적으로 어떻게 되는가?
+A=받음각이 감소한다.
+B=블레이드 각도가 증가한다.
+C=추력이 항상 감소한다.
+D=회전이 정지된다.
+ANSWER=B
+EXPLAIN=피치를 증가시키면 블레이드 각도가 커지며 비행 조건에 따라 효율이 변화한다.
+QEND

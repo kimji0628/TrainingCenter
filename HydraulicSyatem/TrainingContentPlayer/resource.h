@@ -59,6 +59,20 @@
 #define IDC_QUIZGEN_BTN_REGENERATE      1117
 #define IDC_QUIZGEN_BTN_ADD_MORE        1118
 #define IDC_QUIZGEN_BTN_SAVE            1119
+#define IDC_QUIZGEN_QUESTION_STATUS     1120
+#define IDC_QUIZGEN_BANK_SEP            1121
+#define IDC_QUIZGEN_BANK_TITLE          1122
+#define IDC_QUIZGEN_BANK_STATUS         1123
+#define IDC_QUIZGEN_SPLITTER            1124
+#define IDC_QUIZGEN_TAB                 1125
+#define IDC_QUIZGEN_BANK_LIST           1126
+#define IDC_QUIZGEN_BANK_BTN_DELETE     1127
+#define IDC_QUIZGEN_BANK_BTN_MOVE_UP    1128
+#define IDC_QUIZGEN_BANK_BTN_MOVE_DOWN  1129
+#define IDC_QUIZGEN_BANK_COUNT          1130
+#define IDC_QUIZGEN_BTN_TEST            1131
+#define IDC_QUIZGEN_BTN_CHATGPT         1132
+#define IDC_QUIZGEN_CHATGPT_PROGRESS    1133
 
 // Next default values for new objects
 // 
@@ -66,7 +80,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1120
+#define _APS_NEXT_CONTROL_VALUE         1134
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

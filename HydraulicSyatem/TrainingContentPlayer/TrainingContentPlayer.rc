@@ -13,7 +13,7 @@
 #undef APSTUDIO_READONLY_SYMBOLS
 
 /////////////////////////////////////////////////////////////////////////////
-// «—±πæÓ(¥Î«—πŒ±π) resources
+// ÔøΩ—±ÔøΩÔøΩÔøΩ(ÔøΩÔøΩÔøΩ—πŒ±ÔøΩ) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_KOR)
 LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
@@ -53,7 +53,7 @@ END
 IDD_TRAININGCONTENTPLAYER_DIALOG DIALOGEX 0, 0, 900, 600
 STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "?§Îßà??Í∞ïÏùò ?åÎ†à?¥Ïñ¥"
+CAPTION "?ÔøΩÎßà??Í∞ïÏùò ?ÔøΩÎ†à?ÔøΩÏñ¥"
 FONT 9, "Malgun Gothic", 0, 0, 0x1
 BEGIN
     CONTROL         "",IDC_TREE_COURSE,"SysTreeView32",TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_SHOWSELALWAYS | WS_BORDER | WS_HSCROLL | WS_TABSTOP,10,10,325,580
@@ -136,7 +136,7 @@ BEGIN
     0
 END
 
-#endif    // «—±πæÓ(¥Î«—πŒ±π) resources
+#endif    // ÔøΩ—±ÔøΩÔøΩÔøΩ(ÔøΩÔøΩÔøΩ—πŒ±ÔøΩ) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

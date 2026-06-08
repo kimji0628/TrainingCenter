@@ -1,0 +1,3 @@
+[OpenAI]
+ApiKey=sk-proj-xxxxxxxx
+Model=gpt-4o
