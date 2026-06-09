@@ -12,6 +12,7 @@ struct QUESTION_ITEM
     int      nNo;
     CStringW strCategory;
     int      nSourcePage;
+    CStringW strSourcePdfPath;
     CStringW strCreated;
     CStringW strQuestion;
     CStringW strChoice1;

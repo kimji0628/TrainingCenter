@@ -72,6 +72,7 @@ protected:
     BOOL m_bQuizGenMode;
 
     BOOL m_bSuppressTreeSelChange;
+    BOOL m_bSuppressQuizGenPdfSync;
 
     BOOL m_bExitCleanupDone;
     BOOL m_bExitConfirmShowing;
@@ -208,6 +209,7 @@ protected:
     afx_msg void OnBnClickedBtnImage();
 
     afx_msg void OnBnClickedBtnQuizGen();
+    afx_msg LRESULT OnQuizGenPdfIndexChanged(WPARAM wParam, LPARAM lParam);
 
     afx_msg void OnBnClickedBtnNext();
 

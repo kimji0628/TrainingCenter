@@ -148,6 +148,11 @@ BOOL CPdfViewerCtrl::IsDocumentOpen() const
 {
     return m_doc.IsOpen() && m_nPageCount > 0;
 }
+
+CStringW CPdfViewerCtrl::GetDocumentPath() const
+{
+    return m_strPdfPath;
+}
 BOOL CPdfViewerCtrl::OpenDocument(const CStringW& strPdfPath)
 {
     CloseDocument();
@@ -485,7 +490,11 @@ void CPdfViewerCtrl::SetCurrentPage(int nPage)
         return;
     nPage = max(0, min(m_nPageCount - 1, nPage));
     if (nPage == m_nCurrentPage && !m_pageImage.IsNull())
+    {
+        EnsureThumbVisible(nPage);
+        UpdatePageInfoLabel();
         return;
+    }
     const BOOL bPreserveZoom = !m_pageImage.IsNull();
     m_nCurrentPage = nPage;
     RenderCurrentPage(bPreserveZoom);

@@ -286,6 +286,7 @@ CTrainingDlg::CTrainingDlg(CWnd* pParent)
     , m_bImageListMode(FALSE)
     , m_bQuizGenMode(FALSE)
     , m_bSuppressTreeSelChange(FALSE)
+    , m_bSuppressQuizGenPdfSync(FALSE)
     , m_bExitCleanupDone(FALSE)
     , m_bExitConfirmShowing(FALSE)
     , m_nSelectedPdfIndex(-1)
@@ -317,6 +318,7 @@ BEGIN_MESSAGE_MAP(CTrainingDlg, CDialogEx)
     ON_WM_SYSCOMMAND()
     ON_WM_DESTROY()
     ON_MESSAGE(WM_USER + 100, &CTrainingDlg::OnEnsureVideoPlayer)
+    ON_MESSAGE(WM_QUIZGEN_PDF_INDEX_CHANGED, &CTrainingDlg::OnQuizGenPdfIndexChanged)
     ON_MESSAGE(WM_IMAGE_VIEW_ITEM_SELECTED, &CTrainingDlg::OnImageViewItemSelected)
     ON_MESSAGE(WM_PDF_COVER_ITEM_SELECTED, &CTrainingDlg::OnPdfCoverItemSelected)
     ON_MESSAGE(WM_PDF_VIEWER_BACK_TO_LIST, &CTrainingDlg::OnPdfViewerBackToList)
@@ -1243,7 +1245,7 @@ void CTrainingDlg::SelectQuizGenPdfIndex(int nPdfIndex)
         return;
 
     m_nSelectedPdfIndex = nPdfIndex;
-    m_quizGenView.SelectPdfByIndex(nPdfIndex);
+    m_quizGenView.SelectPdfByIndex(nPdfIndex, FALSE);
 
     HTREEITEM hRoot = m_treeCourse.GetRootItem();
     HTREEITEM hPdfItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPdfIndex);
@@ -1256,6 +1258,33 @@ void CTrainingDlg::SelectQuizGenPdfIndex(int nPdfIndex)
     }
 
     UpdatePdfTreeSelectionHighlight(nPdfIndex);
+}
+
+LRESULT CTrainingDlg::OnQuizGenPdfIndexChanged(WPARAM wParam, LPARAM /*lParam*/)
+{
+    if (!m_bQuizGenMode || m_bSuppressQuizGenPdfSync)
+        return 0;
+
+    const int nPdfIndex = static_cast<int>(wParam);
+    if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
+        return 0;
+
+    m_bSuppressQuizGenPdfSync = TRUE;
+    m_nSelectedPdfIndex = nPdfIndex;
+
+    HTREEITEM hRoot = m_treeCourse.GetRootItem();
+    HTREEITEM hPdfItem = FindPdfTreeItemRecursive(m_treeCourse, hRoot, nPdfIndex);
+    if (hPdfItem != nullptr)
+    {
+        m_bSuppressTreeSelChange = TRUE;
+        m_treeCourse.SelectItem(hPdfItem);
+        m_treeCourse.EnsureVisible(hPdfItem);
+        m_bSuppressTreeSelChange = FALSE;
+    }
+
+    UpdatePdfTreeSelectionHighlight(nPdfIndex);
+    m_bSuppressQuizGenPdfSync = FALSE;
+    return 0;
 }
 
 void CTrainingDlg::CollectPdfIndicesInFolder(

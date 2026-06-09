@@ -1,6 +1,11 @@
 #include "pch.h"
 #include "GeneratedQuestionListBox.h"
 
+namespace
+{
+    constexpr UINT WM_QUIZGEN_GENERATED_LIST_SEL = WM_USER + 214;
+}
+
 int CGeneratedQuestionListBox::GetQuestionIndexFromItemData(DWORD_PTR dwItemData)
 {
     return static_cast<int>(dwItemData & 0x7FFFFFFF);
@@ -34,6 +39,7 @@ void CGeneratedQuestionListBox::OnLButtonUp(UINT nFlags, CPoint point)
     CWnd* pParent = GetParent();
     if (pParent != nullptr && ::IsWindow(pParent->GetSafeHwnd()))
     {
+        pParent->SendMessage(WM_QUIZGEN_GENERATED_LIST_SEL, static_cast<WPARAM>(nSel), 0);
         pParent->SendMessage(
             WM_COMMAND,
             MAKEWPARAM(static_cast<WPARAM>(GetDlgCtrlID()), LBN_SELCHANGE),

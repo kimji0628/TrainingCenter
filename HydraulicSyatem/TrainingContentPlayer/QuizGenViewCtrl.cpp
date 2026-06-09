@@ -126,6 +126,7 @@ BEGIN_MESSAGE_MAP(CQuizGenViewCtrl, CWnd)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_CHATGPT, &CQuizGenViewCtrl::OnBnClickedChatGpt)
     ON_MESSAGE(WM_QUIZGEN_CHATGPT_DONE, &CQuizGenViewCtrl::OnChatGptTestDone)
     ON_MESSAGE(WM_QUIZGEN_GENERATE_DONE, &CQuizGenViewCtrl::OnQuestionGenerateDone)
+    ON_MESSAGE(WM_QUIZGEN_GENERATED_LIST_SEL, &CQuizGenViewCtrl::OnGeneratedListSelectionMsg)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_DELETE, &CQuizGenViewCtrl::OnBnClickedBankDelete)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_MOVE_UP, &CQuizGenViewCtrl::OnBnClickedBankMoveUp)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_MOVE_DOWN, &CQuizGenViewCtrl::OnBnClickedBankMoveDown)
@@ -275,6 +276,7 @@ void CQuizGenViewCtrl::CreateChildControls()
     m_richQuestion.Create(dwRichStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_RICHEDIT);
     m_richBank.Create(dwBankRichStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_LIST);
     m_richBank.SetBackgroundColor(FALSE, RGB(252, 252, 252));
+    m_richBank.SetEventMask(m_richBank.GetEventMask() | ENM_SELCHANGE);
 
     m_btnBankDelete.Create(L"삭제", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_BTN_DELETE);
     m_btnBankMoveUp.Create(L"위로 이동", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_BTN_MOVE_UP);
@@ -668,23 +670,99 @@ void CQuizGenViewCtrl::LogQuestionSelect(
     }
 }
 
-BOOL CQuizGenViewCtrl::NavigatePdfToSourcePage(int nSourcePage)
+void CQuizGenViewCtrl::StampQuestionSourcePdfPaths(
+    CQuestionItemArray& questions,
+    const CStringW& strPdfPath)
 {
-    if (nSourcePage < 1 || !::IsWindow(m_pdfPreview.GetSafeHwnd()))
+    if (strPdfPath.IsEmpty())
+        return;
+
+    for (QUESTION_ITEM& item : questions)
+    {
+        if (item.strSourcePdfPath.IsEmpty())
+            item.strSourcePdfPath = strPdfPath;
+    }
+}
+
+int CQuizGenViewCtrl::FindGeneratedListIndexForQuestion(int nQuestionIndex) const
+{
+    if (nQuestionIndex < 0 || !::IsWindow(m_listGenerated.GetSafeHwnd()))
+        return -1;
+
+    const int nCount = m_listGenerated.GetCount();
+    for (int i = 0; i < nCount; ++i)
+    {
+        const DWORD_PTR dwItemData = m_listGenerated.GetItemData(i);
+        if (dwItemData == static_cast<DWORD_PTR>(LB_ERR))
+            continue;
+
+        if (CGeneratedQuestionListBox::GetQuestionIndexFromItemData(dwItemData) == nQuestionIndex)
+            return i;
+    }
+
+    return (nQuestionIndex < nCount) ? nQuestionIndex : -1;
+}
+
+BOOL CQuizGenViewCtrl::NavigatePdfToQuestionSource(const QUESTION_ITEM& item)
+{
+    if (item.nSourcePage < 1 || !::IsWindow(m_pdfPreview.GetSafeHwnd()))
         return FALSE;
 
-    if (!m_pdfPreview.IsDocumentOpen())
+    CStringW strPdfPath = item.strSourcePdfPath;
+    if (strPdfPath.IsEmpty())
     {
         ReadSettingsFromControls();
-        const CStringW strPdf = GetSelectedPdfPath();
-        if (!strPdf.IsEmpty())
-            m_pdfPreview.OpenDocument(strPdf);
+        strPdfPath = GetSelectedPdfPath();
+    }
+
+    if (strPdfPath.IsEmpty())
+        return FALSE;
+
+    int nPdfIndex = -1;
+    for (int i = 0; i < m_arrPdfFiles.GetSize(); ++i)
+    {
+        if (m_arrPdfFiles[i].CompareNoCase(strPdfPath) == 0)
+        {
+            nPdfIndex = i;
+            break;
+        }
+    }
+
+    const BOOL bNeedOpen =
+        !m_pdfPreview.IsDocumentOpen() ||
+        m_pdfPreview.GetDocumentPath().CompareNoCase(strPdfPath) != 0;
+
+    if (bNeedOpen)
+    {
+        if (nPdfIndex >= 0)
+        {
+            SelectPdfByIndex(nPdfIndex, TRUE);
+        }
+        else if (!m_pdfPreview.OpenDocument(strPdfPath))
+        {
+            return FALSE;
+        }
     }
 
     if (!m_pdfPreview.IsDocumentOpen())
         return FALSE;
 
-    return m_pdfPreview.GoToPage(nSourcePage);
+    m_pdfPreview.ShowWindow(SW_SHOW);
+    return m_pdfPreview.GoToPage(item.nSourcePage);
+}
+
+void CQuizGenViewCtrl::HandleGeneratedListSelection(int nListIndex)
+{
+    if (nListIndex < 0)
+        return;
+
+    SelectGeneratedQuestion(ResolveGeneratedQuestionIndex(nListIndex), TRUE);
+}
+
+LRESULT CQuizGenViewCtrl::OnGeneratedListSelectionMsg(WPARAM wParam, LPARAM /*lParam*/)
+{
+    HandleGeneratedListSelection(static_cast<int>(wParam));
+    return 0;
 }
 
 int CQuizGenViewCtrl::ResolveGeneratedQuestionIndex(int nListIndex) const
@@ -748,7 +826,9 @@ void CQuizGenViewCtrl::RefreshGeneratedList()
         m_nCurrentTestQuestion = 0;
     }
 
-    m_listGenerated.SetCurSel(m_nCurrentTestQuestion);
+    const int nListIndex = FindGeneratedListIndexForQuestion(m_nCurrentTestQuestion);
+    if (nListIndex >= 0)
+        m_listGenerated.SetCurSel(nListIndex);
     m_listGenerated.Invalidate(FALSE);
 }
 
@@ -760,11 +840,13 @@ void CQuizGenViewCtrl::SelectGeneratedQuestion(int nIndex, BOOL bNavigatePdf)
     m_nCurrentTestQuestion = nIndex;
     const QUESTION_ITEM& item = m_TestQuestionList[nIndex];
 
+    const int nListIndex = FindGeneratedListIndexForQuestion(nIndex);
     if (::IsWindow(m_listGenerated.GetSafeHwnd()) &&
         m_listGenerated.IsWindowVisible() &&
-        m_listGenerated.GetCurSel() != nIndex)
+        nListIndex >= 0 &&
+        m_listGenerated.GetCurSel() != nListIndex)
     {
-        m_listGenerated.SetCurSel(nIndex);
+        m_listGenerated.SetCurSel(nListIndex);
     }
 
     m_richQuestion.SetWindowText(FormatQuestionDisplayText(item));
@@ -772,7 +854,7 @@ void CQuizGenViewCtrl::SelectGeneratedQuestion(int nIndex, BOOL bNavigatePdf)
     if (bNavigatePdf)
     {
         const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
-        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const BOOL bMoved = NavigatePdfToQuestionSource(item);
         const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
         LogQuestionSelect(
             L"Generated",
@@ -787,12 +869,7 @@ void CQuizGenViewCtrl::SelectGeneratedQuestion(int nIndex, BOOL bNavigatePdf)
 
 void CQuizGenViewCtrl::OnLbnSelchangeGeneratedList()
 {
-    const int nListIndex = m_listGenerated.GetCurSel();
-    if (nListIndex < 0)
-        return;
-
-    const int nQuestionIndex = ResolveGeneratedQuestionIndex(nListIndex);
-    SelectGeneratedQuestion(nQuestionIndex, TRUE);
+    HandleGeneratedListSelection(m_listGenerated.GetCurSel());
 }
 
 int CQuizGenViewCtrl::FindBankIndexByCharPos(long nCharPos) const
@@ -832,7 +909,7 @@ void CQuizGenViewCtrl::SelectBankQuestion(int nIndex, BOOL bNavigatePdf)
     {
         const QUESTION_ITEM& item = m_SelectedQuestionList[nIndex];
         const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
-        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const BOOL bMoved = NavigatePdfToQuestionSource(item);
         const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
         LogQuestionSelect(
             L"Temp",
@@ -951,11 +1028,13 @@ void CQuizGenViewCtrl::DisplayCurrentTestQuestion(BOOL bNavigatePdf)
 
     const QUESTION_ITEM& item = m_TestQuestionList[m_nCurrentTestQuestion];
 
+    const int nListIndex = FindGeneratedListIndexForQuestion(m_nCurrentTestQuestion);
     if (::IsWindow(m_listGenerated.GetSafeHwnd()) &&
         m_listGenerated.IsWindowVisible() &&
-        m_listGenerated.GetCurSel() != m_nCurrentTestQuestion)
+        nListIndex >= 0 &&
+        m_listGenerated.GetCurSel() != nListIndex)
     {
-        m_listGenerated.SetCurSel(m_nCurrentTestQuestion);
+        m_listGenerated.SetCurSel(nListIndex);
     }
 
     m_richQuestion.SetWindowText(FormatQuestionDisplayText(item));
@@ -963,7 +1042,7 @@ void CQuizGenViewCtrl::DisplayCurrentTestQuestion(BOOL bNavigatePdf)
     if (bNavigatePdf)
     {
         const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
-        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const BOOL bMoved = NavigatePdfToQuestionSource(item);
         const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
         LogQuestionSelect(
             L"Generated",
@@ -1016,6 +1095,11 @@ BOOL CQuizGenViewCtrl::AdoptCurrentTestQuestion(CStringW& strMessage)
 
     QUESTION_ITEM adoptedItem = item;
     adoptedItem.bUseFlag = TRUE;
+    if (adoptedItem.strSourcePdfPath.IsEmpty())
+    {
+        ReadSettingsFromControls();
+        adoptedItem.strSourcePdfPath = GetSelectedPdfPath();
+    }
     m_SelectedQuestionList.push_back(adoptedItem);
     RefreshBankList();
     RefreshGeneratedList();
@@ -1235,7 +1319,7 @@ void CQuizGenViewCtrl::UpdatePdfCombo()
     }
 }
 
-void CQuizGenViewCtrl::SelectPdfByIndex(int nPdfIndex)
+void CQuizGenViewCtrl::SelectPdfByIndex(int nPdfIndex, BOOL bNotifyParent)
 {
     if (nPdfIndex < 0 || nPdfIndex >= m_arrPdfFiles.GetSize())
         return;
@@ -1253,6 +1337,22 @@ void CQuizGenViewCtrl::SelectPdfByIndex(int nPdfIndex)
             AfxMessageBox(
                 L"PDF 미리보기를 열 수 없습니다.\n" + m_settings.strPdfPath,
                 MB_OK | MB_ICONWARNING);
+        }
+        else
+        {
+            m_pdfPreview.ShowWindow(SW_SHOW);
+        }
+    }
+
+    if (bNotifyParent)
+    {
+        CWnd* pParent = GetParent();
+        if (pParent != nullptr && ::IsWindow(pParent->GetSafeHwnd()))
+        {
+            pParent->SendMessage(
+                WM_QUIZGEN_PDF_INDEX_CHANGED,
+                static_cast<WPARAM>(nPdfIndex),
+                0);
         }
     }
 }
@@ -1539,6 +1639,8 @@ LRESULT CQuizGenViewCtrl::OnQuestionGenerateDone(WPARAM /*wParam*/, LPARAM lPara
     if (pResult->bSuccess)
     {
         m_TestQuestionList = std::move(pResult->questions);
+        ReadSettingsFromControls();
+        StampQuestionSourcePdfPaths(m_TestQuestionList, m_settings.strPdfPath);
         m_nCurrentTestQuestion = 0;
         m_bTestQuestionsLoaded = TRUE;
         RefreshGeneratedList();

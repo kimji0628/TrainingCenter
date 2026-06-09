@@ -9,6 +9,8 @@
 
 #define WM_QUIZGEN_CHATGPT_DONE (WM_USER + 211)
 #define WM_QUIZGEN_GENERATE_DONE (WM_USER + 212)
+#define WM_QUIZGEN_PDF_INDEX_CHANGED (WM_USER + 213)
+#define WM_QUIZGEN_GENERATED_LIST_SEL (WM_USER + 214)
 
 // ============================================================================
 // QuizGenViewCtrl.h - AI 문제 생성 / 기능 시험 View
@@ -25,7 +27,7 @@ public:
     BOOL CreateOverPlaceholder(CWnd* pParent, CWnd* pPlaceholder, UINT nHostId);
 
     void SetPdfFileList(const CStringArray& arrPdfFiles);
-    void SelectPdfByIndex(int nPdfIndex);
+    void SelectPdfByIndex(int nPdfIndex, BOOL bNotifyParent = TRUE);
     int GetSelectedPdfIndex() const { return m_nSelectedPdfIndex; }
 
     BOOL IsPreviewActive() const;
@@ -113,7 +115,10 @@ protected:
     void UpdatePdfCombo();
     void LoadDummyQuestionText();
     void ReadSettingsFromControls();
-    BOOL NavigatePdfToSourcePage(int nSourcePage);
+    BOOL NavigatePdfToQuestionSource(const QUESTION_ITEM& item);
+    int FindGeneratedListIndexForQuestion(int nQuestionIndex) const;
+    void HandleGeneratedListSelection(int nListIndex);
+    void StampQuestionSourcePdfPaths(CQuestionItemArray& questions, const CStringW& strPdfPath);
     void LogQuestionSelect(
         const CStringW& strListType,
         int nDisplayIndex,
@@ -166,6 +171,7 @@ protected:
     afx_msg void OnBnClickedChatGpt();
     afx_msg LRESULT OnChatGptTestDone(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnQuestionGenerateDone(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnGeneratedListSelectionMsg(WPARAM wParam, LPARAM lParam);
     afx_msg void OnBnClickedBankDelete();
     afx_msg void OnBnClickedBankMoveUp();
     afx_msg void OnBnClickedBankMoveDown();

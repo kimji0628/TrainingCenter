@@ -21,6 +21,9 @@ namespace
             item.strCategory = strValue;
         else if (strKey.CompareNoCase(L"SOURCE_PAGE") == 0)
             item.nSourcePage = _wtoi(strValue);
+        else if (strKey.CompareNoCase(L"SOURCE_PDF") == 0 ||
+                 strKey.CompareNoCase(L"SOURCEPDFPATH") == 0)
+            item.strSourcePdfPath = strValue;
         else if (strKey.CompareNoCase(L"CREATED") == 0)
             item.strCreated = strValue;
         else if (strKey.CompareNoCase(L"QUESTION") == 0)

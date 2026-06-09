@@ -16,6 +16,7 @@ public:
     BOOL OpenDocument(const CStringW& strPdfPath);
     void CloseDocument();
     BOOL IsDocumentOpen() const;
+    CStringW GetDocumentPath() const;
     int GetCurrentPageOneBased() const;
     BOOL GoToPage(int nPageOneBased);
     BOOL HandleMouseWheel(short zDelta, const CPoint& ptScreen);
