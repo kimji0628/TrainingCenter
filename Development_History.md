@@ -173,7 +173,7 @@ v1.21
 - 출처 PDF 경로(`strSourcePdfPath`) 저장·복원: **정상** (생성·채택 시 경로 스탬프, 다른 PDF 문제 선택 시 자동 로드)
 
 ### Git Commit
-Commit ID : (보류 — Commit 후 갱신 예정)
+Commit ID : dfb1e4d
 
 ### Commit Message (참고)
 
