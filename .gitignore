@@ -34,6 +34,9 @@ ipch/
 *.lastbuildstate
 Cl.items.tlog
 
+# Saved question books (user data)
+Bin/QuestionBooks/
+
 # Local secrets and runtime logs (do not commit)
 Bin/SCP_Config.txt
 Bin/Log/

@@ -11,35 +11,44 @@ namespace
         return str;
     }
 
+    CStringW UnescapeFieldValue(const CStringW& strValue)
+    {
+        CStringW str = strValue;
+        str.Replace(L"\\n", L"\r\n");
+        return str;
+    }
+
     void ApplyField(QUESTION_ITEM& item, const CStringW& strKey, const CStringW& strValue)
     {
+        const CStringW strDecoded = UnescapeFieldValue(strValue);
+
         if (strKey.CompareNoCase(L"ID") == 0)
-            item.strId = strValue;
+            item.strId = strDecoded;
         else if (strKey.CompareNoCase(L"NO") == 0)
-            item.nNo = _wtoi(strValue);
+            item.nNo = _wtoi(strDecoded);
         else if (strKey.CompareNoCase(L"CATEGORY") == 0)
-            item.strCategory = strValue;
+            item.strCategory = strDecoded;
         else if (strKey.CompareNoCase(L"SOURCE_PAGE") == 0)
-            item.nSourcePage = _wtoi(strValue);
+            item.nSourcePage = _wtoi(strDecoded);
         else if (strKey.CompareNoCase(L"SOURCE_PDF") == 0 ||
                  strKey.CompareNoCase(L"SOURCEPDFPATH") == 0)
-            item.strSourcePdfPath = strValue;
+            item.strSourcePdfPath = strDecoded;
         else if (strKey.CompareNoCase(L"CREATED") == 0)
-            item.strCreated = strValue;
+            item.strCreated = strDecoded;
         else if (strKey.CompareNoCase(L"QUESTION") == 0)
-            item.strQuestion = strValue;
+            item.strQuestion = strDecoded;
         else if (strKey.CompareNoCase(L"A") == 0 || strKey.CompareNoCase(L"CHOICE1") == 0)
-            item.strChoice1 = strValue;
+            item.strChoice1 = strDecoded;
         else if (strKey.CompareNoCase(L"B") == 0 || strKey.CompareNoCase(L"CHOICE2") == 0)
-            item.strChoice2 = strValue;
+            item.strChoice2 = strDecoded;
         else if (strKey.CompareNoCase(L"C") == 0 || strKey.CompareNoCase(L"CHOICE3") == 0)
-            item.strChoice3 = strValue;
+            item.strChoice3 = strDecoded;
         else if (strKey.CompareNoCase(L"D") == 0 || strKey.CompareNoCase(L"CHOICE4") == 0)
-            item.strChoice4 = strValue;
+            item.strChoice4 = strDecoded;
         else if (strKey.CompareNoCase(L"ANSWER") == 0)
-            item.strAnswer = strValue;
+            item.strAnswer = strDecoded;
         else if (strKey.CompareNoCase(L"EXPLAIN") == 0 || strKey.CompareNoCase(L"EXPLANATION") == 0)
-            item.strExplain = strValue;
+            item.strExplain = strDecoded;
     }
 
     void FinalizeQuestionItem(QUESTION_ITEM& item)

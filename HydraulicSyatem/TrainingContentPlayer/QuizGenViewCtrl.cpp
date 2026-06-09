@@ -5,6 +5,9 @@
 #include "ScpUiSettings.h"
 #include "ScpPaths.h"
 #include "OpenAiClient.h"
+#include "QuestionBookStorage.h"
+#include "QuestionBookSaveDlg.h"
+#include "QuestionBookListDlg.h"
 #include "Resource.h"
 
 #include <fstream>
@@ -122,6 +125,7 @@ BEGIN_MESSAGE_MAP(CQuizGenViewCtrl, CWnd)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_REGENERATE, &CQuizGenViewCtrl::OnBnClickedRegenerate)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_ADD_MORE, &CQuizGenViewCtrl::OnBnClickedAddMore)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_SAVE, &CQuizGenViewCtrl::OnBnClickedSave)
+    ON_BN_CLICKED(IDC_QUIZGEN_BTN_SAVED_BOOKS, &CQuizGenViewCtrl::OnBnClickedSavedBooks)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_TEST, &CQuizGenViewCtrl::OnBnClickedTest)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_CHATGPT, &CQuizGenViewCtrl::OnBnClickedChatGpt)
     ON_MESSAGE(WM_QUIZGEN_CHATGPT_DONE, &CQuizGenViewCtrl::OnChatGptTestDone)
@@ -292,6 +296,12 @@ void CQuizGenViewCtrl::CreateChildControls()
     m_btnRegenerate.Create(L"재출제", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BTN_REGENERATE);
     m_btnAddMore.Create(L"추가 생성", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BTN_ADD_MORE);
     m_btnSave.Create(L"최종 저장", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BTN_SAVE);
+    m_btnSavedBooks.Create(
+        L"저장된 문제집",
+        dwBtnStyle,
+        CRect(0, 0, 0, 0),
+        this,
+        IDC_QUIZGEN_BTN_SAVED_BOOKS);
     m_btnTest.Create(L"기능 시험", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BTN_TEST);
     m_btnChatGpt.Create(L"ChatGPT 연동", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BTN_CHATGPT);
     m_staticChatGptProgress.Create(
@@ -318,7 +328,8 @@ void CQuizGenViewCtrl::CreateChildControls()
         &m_staticPreviewLabel, &m_tabQuestion,
         &m_listGenerated, &m_richQuestion, &m_richBank,
         &m_btnBankDelete, &m_btnBankMoveUp, &m_btnBankMoveDown, &m_staticBankCount,
-        &m_btnUse, &m_btnRegenerate, &m_btnAddMore, &m_btnSave, &m_btnTest, &m_btnChatGpt,
+        &m_btnUse, &m_btnRegenerate, &m_btnAddMore, &m_btnSave, &m_btnSavedBooks,
+        &m_btnTest, &m_btnChatGpt,
         &m_staticChatGptProgress
     };
 
@@ -525,10 +536,16 @@ void CQuizGenViewCtrl::UpdateLayout()
     place(m_richBank, nRightX, nContentTop, nRightPaneW, nBankListHeight);
 
     const int nBankBtnGap = 8;
+    const int nBankSaveW = GetTextWidth(this, L"최종 저장", 28);
+    const int nBankSavedListW = GetTextWidth(this, L"저장된 문제집", 28);
     const int nBankDeleteW = GetTextWidth(this, L"삭제", 28);
     const int nBankUpW = GetTextWidth(this, L"위로 이동", 28);
     const int nBankDownW = GetTextWidth(this, L"아래로 이동", 28);
     int nBankBtnX = nRightX;
+    place(m_btnSave, nBankBtnX, nBankToolbarY, nBankSaveW, BANK_TOOLBAR_H);
+    nBankBtnX += nBankSaveW + nBankBtnGap;
+    place(m_btnSavedBooks, nBankBtnX, nBankToolbarY, nBankSavedListW, BANK_TOOLBAR_H);
+    nBankBtnX += nBankSavedListW + nBankBtnGap;
     place(m_btnBankDelete, nBankBtnX, nBankToolbarY, nBankDeleteW, BANK_TOOLBAR_H);
     nBankBtnX += nBankDeleteW + nBankBtnGap;
     place(m_btnBankMoveUp, nBankBtnX, nBankToolbarY, nBankUpW, BANK_TOOLBAR_H);
@@ -540,7 +557,6 @@ void CQuizGenViewCtrl::UpdateLayout()
     const int nBtnUseW = GetTextWidth(this, L"문제 채택", 28);
     const int nBtnRegenW = GetTextWidth(this, L"재출제", 28);
     const int nBtnAddW = GetTextWidth(this, L"추가 생성", 28);
-    const int nBtnSaveW = GetTextWidth(this, L"최종 저장", 28);
     const int nBtnTestW = GetTextWidth(this, L"기능 시험", 28);
     const int nBtnChatGptW = GetTextWidth(this, L"ChatGPT 연동", 28);
     place(m_staticChatGptProgress, nRightX, nProgressY, nRightPaneW, CHATGPT_PROGRESS_H);
@@ -551,8 +567,6 @@ void CQuizGenViewCtrl::UpdateLayout()
     nBtnX += nBtnRegenW + nBtnGap;
     place(m_btnAddMore, nBtnX, nGenActionY, nBtnAddW, GENERATED_ACTION_H);
     nBtnX += nBtnAddW + nBtnGap;
-    place(m_btnSave, nBtnX, nGenActionY, nBtnSaveW, GENERATED_ACTION_H);
-    nBtnX += nBtnSaveW + nBtnGap;
     place(m_btnTest, nBtnX, nGenActionY, nBtnTestW, GENERATED_ACTION_H);
     nBtnX += nBtnTestW + nBtnGap;
     place(m_btnChatGpt, nBtnX, nGenActionY, nBtnChatGptW, GENERATED_ACTION_H);
@@ -577,6 +591,10 @@ void CQuizGenViewCtrl::ShowActiveTab()
         m_richQuestion.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_richBank.GetSafeHwnd()))
         m_richBank.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
+    if (::IsWindow(m_btnSave.GetSafeHwnd()))
+        m_btnSave.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
+    if (::IsWindow(m_btnSavedBooks.GetSafeHwnd()))
+        m_btnSavedBooks.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
     if (::IsWindow(m_btnBankDelete.GetSafeHwnd()))
         m_btnBankDelete.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
     if (::IsWindow(m_btnBankMoveUp.GetSafeHwnd()))
@@ -591,8 +609,6 @@ void CQuizGenViewCtrl::ShowActiveTab()
         m_btnRegenerate.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_btnAddMore.GetSafeHwnd()))
         m_btnAddMore.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
-    if (::IsWindow(m_btnSave.GetSafeHwnd()))
-        m_btnSave.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_btnTest.GetSafeHwnd()))
         m_btnTest.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_btnChatGpt.GetSafeHwnd()))
@@ -609,7 +625,19 @@ void CQuizGenViewCtrl::ShowActiveTab()
 void CQuizGenViewCtrl::UpdateBankStatusLabel()
 {
     CStringW strBank;
-    strBank.Format(L"현재 저장된 문제 : %d 문제", static_cast<int>(m_SelectedQuestionList.size()));
+    const int nCount = static_cast<int>(m_SelectedQuestionList.size());
+    if (!m_strLoadedSavedBookName.IsEmpty())
+    {
+        strBank.Format(
+            L"[%s] %d 문제",
+            m_strLoadedSavedBookName.GetString(),
+            nCount);
+    }
+    else
+    {
+        strBank.Format(L"임시 문제집 : %d 문제", nCount);
+    }
+
     if (::IsWindow(m_staticBankCount.GetSafeHwnd()))
         m_staticBankCount.SetWindowText(strBank);
 }
@@ -1100,6 +1128,7 @@ BOOL CQuizGenViewCtrl::AdoptCurrentTestQuestion(CStringW& strMessage)
         ReadSettingsFromControls();
         adoptedItem.strSourcePdfPath = GetSelectedPdfPath();
     }
+    m_strLoadedSavedBookName.Empty();
     m_SelectedQuestionList.push_back(adoptedItem);
     RefreshBankList();
     RefreshGeneratedList();
@@ -1505,16 +1534,96 @@ void CQuizGenViewCtrl::OnBnClickedAddMore()
 
 void CQuizGenViewCtrl::OnBnClickedSave()
 {
-    AfxMessageBox(
-        L"[기능 시험] 최종 저장\r\n\r\n"
-        L"TXT 저장 기능은 다음 단계에서 구현됩니다.",
-        MB_OK | MB_ICONINFORMATION);
+    if (m_SelectedQuestionList.empty())
+    {
+        AfxMessageBox(
+            L"임시 문제집에 저장할 문제가 없습니다.\r\n\r\n"
+            L"생성된 문제에서 [문제 채택]으로 문제를 추가하세요.",
+            MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    CQuestionBookSaveDlg dlg(this);
+    if (dlg.DoModal() != IDOK)
+        return;
+
+    const CStringW strBookName = dlg.GetBookName();
+    if (QuestionBookStorage::BookFileExists(strBookName))
+    {
+        CStringW strConfirm;
+        strConfirm.Format(
+            L"같은 이름의 문제집이 있습니다.\r\n\r\n"
+            L"문제집: %s\r\n\r\n"
+            L"덮어쓰시겠습니까?",
+            strBookName.GetString());
+
+        if (AfxMessageBox(strConfirm, MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES)
+            return;
+    }
+
+    CStringW strError;
+    if (!QuestionBookStorage::SaveQuestionBook(strBookName, m_SelectedQuestionList, strError))
+    {
+        AfxMessageBox(strError, MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    CStringW strMsg;
+    strMsg.Format(
+        L"문제집이 저장되었습니다.\r\n\r\n"
+        L"이름: %s\r\n"
+        L"문제 수: %d\r\n"
+        L"위치: %s",
+        strBookName.GetString(),
+        static_cast<int>(m_SelectedQuestionList.size()),
+        QuestionBookStorage::GetQuestionBooksFolder().GetString());
+    AfxMessageBox(strMsg, MB_OK | MB_ICONINFORMATION);
+}
+
+void CQuizGenViewCtrl::LoadSavedQuestionBook(const CStringW& strFilePath)
+{
+    CQuestionItemArray loaded;
+    QUESTION_BOOK_INFO info;
+    CStringW strError;
+
+    if (!QuestionBookStorage::LoadQuestionBook(strFilePath, loaded, info, strError))
+    {
+        AfxMessageBox(strError, MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    m_SelectedQuestionList = std::move(loaded);
+    m_strLoadedSavedBookName = info.strName;
+    m_nSelectedBankIndex = m_SelectedQuestionList.empty() ? -1 : 0;
+
+    RefreshBankList();
+    m_tabQuestion.SetCurSel(TAB_BANK);
+    ShowActiveTab();
+
+    if (!m_SelectedQuestionList.empty())
+        SelectBankQuestion(0, TRUE);
+}
+
+void CQuizGenViewCtrl::ShowSavedQuestionBooksDialog()
+{
+    CQuestionBookListDlg dlg(this);
+    if (dlg.DoModal() != IDOK)
+        return;
+
+    const CStringW strFilePath = dlg.GetSelectedFilePath();
+    if (!strFilePath.IsEmpty())
+        LoadSavedQuestionBook(strFilePath);
+}
+
+void CQuizGenViewCtrl::OnBnClickedSavedBooks()
+{
+    ShowSavedQuestionBooksDialog();
 }
 
 void CQuizGenViewCtrl::SetGeneratedActionButtonsEnabled(BOOL bEnabled)
 {
     CWnd* arrButtons[] = {
-        &m_btnUse, &m_btnRegenerate, &m_btnAddMore, &m_btnSave, &m_btnTest, &m_btnChatGpt
+        &m_btnUse, &m_btnRegenerate, &m_btnAddMore, &m_btnTest, &m_btnChatGpt
     };
 
     for (CWnd* pWnd : arrButtons)
@@ -1747,6 +1856,7 @@ void CQuizGenViewCtrl::OnBnClickedBankDelete()
     }
 
     m_SelectedQuestionList.erase(m_SelectedQuestionList.begin() + nIndex);
+    m_strLoadedSavedBookName.Empty();
 
     if (m_SelectedQuestionList.empty())
         m_nSelectedBankIndex = -1;

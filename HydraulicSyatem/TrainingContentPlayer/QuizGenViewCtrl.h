@@ -84,6 +84,7 @@ protected:
     CButton                m_btnRegenerate;
     CButton                m_btnAddMore;
     CButton                m_btnSave;
+    CButton                m_btnSavedBooks;
     CButton                m_btnTest;
     CButton                m_btnChatGpt;
     CStatic                m_staticChatGptProgress;
@@ -98,6 +99,7 @@ protected:
     int                    m_nActiveTab;
     BOOL                   m_bChatGptTestRunning;
     BOOL                   m_bQuestionGenerateRunning;
+    CStringW               m_strLoadedSavedBookName;
 
     CFont                  m_fontEmphasis;
     CFont                  m_fontGenerateBtn;
@@ -147,6 +149,8 @@ protected:
     void SetQuestionGenerateBusy(BOOL bBusy);
     void StartChatGptConnectionTest(const SCP_OPENAI_CONFIG& config);
     void StartQuestionGeneration(const OPENAI_GENERATE_REQUEST& request);
+    void LoadSavedQuestionBook(const CStringW& strFilePath);
+    void ShowSavedQuestionBooksDialog();
 
     afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -167,6 +171,7 @@ protected:
     afx_msg void OnBnClickedRegenerate();
     afx_msg void OnBnClickedAddMore();
     afx_msg void OnBnClickedSave();
+    afx_msg void OnBnClickedSavedBooks();
     afx_msg void OnBnClickedTest();
     afx_msg void OnBnClickedChatGpt();
     afx_msg LRESULT OnChatGptTestDone(WPARAM wParam, LPARAM lParam);

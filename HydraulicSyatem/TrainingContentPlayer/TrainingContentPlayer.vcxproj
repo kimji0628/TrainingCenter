@@ -132,6 +132,9 @@
     <ClInclude Include="OpenAiQuestionGenerator.h" />
     <ClInclude Include="PdfTextExtractor.h" />
     <ClInclude Include="PromptLoader.h" />
+    <ClInclude Include="QuestionBookListDlg.h" />
+    <ClInclude Include="QuestionBookSaveDlg.h" />
+    <ClInclude Include="QuestionBookStorage.h" />
     <ClInclude Include="QuestionTestLoader.h" />
     <ClInclude Include="ScpConfigReader.h" />
     <ClInclude Include="ScpPaths.h" />
@@ -161,6 +164,9 @@
     <ClCompile Include="OpenAiQuestionGenerator.cpp" />
     <ClCompile Include="PdfTextExtractor.cpp" />
     <ClCompile Include="PromptLoader.cpp" />
+    <ClCompile Include="QuestionBookListDlg.cpp" />
+    <ClCompile Include="QuestionBookSaveDlg.cpp" />
+    <ClCompile Include="QuestionBookStorage.cpp" />
     <ClCompile Include="QuestionTestLoader.cpp" />
     <ClCompile Include="ScpConfigReader.cpp" />
     <ClCompile Include="ScpPaths.cpp" />
