@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ScpConfigReader.h"
+#include "ScpPaths.h"
 #include "Util.h"
 
 namespace
@@ -34,7 +35,7 @@ namespace
 
 CStringW ScpConfigReader::GetConfigFilePath()
 {
-    return TrainingUtil::ResolveAppPath(L"SCP_Config.txt");
+    return ScpPaths::ResolveConfigFile(L"SCP_Config.txt");
 }
 
 BOOL ScpConfigReader::LoadOpenAiConfig(SCP_OPENAI_CONFIG& outConfig, CStringW& strError)

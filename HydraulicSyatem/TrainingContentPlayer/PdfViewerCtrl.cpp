@@ -463,6 +463,22 @@ void CPdfViewerCtrl::RenderCurrentPage(BOOL bPreserveZoom)
         ResetZoomPan();
     }
 }
+int CPdfViewerCtrl::GetCurrentPageOneBased() const
+{
+    if (!IsDocumentOpen() || m_nCurrentPage < 0)
+        return 0;
+    return m_nCurrentPage + 1;
+}
+
+BOOL CPdfViewerCtrl::GoToPage(int nPageOneBased)
+{
+    if (!IsDocumentOpen() || nPageOneBased < 1)
+        return FALSE;
+
+    SetCurrentPage(nPageOneBased - 1);
+    return GetCurrentPageOneBased() == nPageOneBased;
+}
+
 void CPdfViewerCtrl::SetCurrentPage(int nPage)
 {
     if (!IsDocumentOpen())

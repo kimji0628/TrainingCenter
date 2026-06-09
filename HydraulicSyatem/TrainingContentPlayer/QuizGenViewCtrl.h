@@ -2,10 +2,13 @@
 
 #include "QuestionItem.h"
 #include "OpenAiConnectionTest.h"
+#include "OpenAiQuestionGenerator.h"
 #include "ScpConfigReader.h"
+#include "GeneratedQuestionListBox.h"
 #include "PdfViewerCtrl.h"
 
 #define WM_QUIZGEN_CHATGPT_DONE (WM_USER + 211)
+#define WM_QUIZGEN_GENERATE_DONE (WM_USER + 212)
 
 // ============================================================================
 // QuizGenViewCtrl.h - AI 문제 생성 / 기능 시험 View
@@ -66,8 +69,10 @@ protected:
     CStatic                m_staticPreviewLabel;
     CTabCtrl               m_tabQuestion;
     CPdfViewerCtrl         m_pdfPreview;
+    CGeneratedQuestionListBox m_listGenerated;
     CRichEditCtrl          m_richQuestion;
-    CListBox               m_listBank;
+    CRichEditCtrl          m_richBank;
+    std::vector<long>      m_arrBankBlockStarts;
     CButton                m_btnBankDelete;
     CButton                m_btnBankMoveUp;
     CButton                m_btnBankMoveDown;
@@ -82,10 +87,15 @@ protected:
     CStatic                m_staticChatGptProgress;
 
     double                 m_dSplitRatio;
+    double                 m_dGeneratedListSplitRatio;
     BOOL                   m_bDraggingSplit;
+    BOOL                   m_bDraggingGeneratedSplit;
     CRect                  m_rcSplitter;
+    CRect                  m_rcGeneratedSplitter;
+    CRect                  m_rcGeneratedBody;
     int                    m_nActiveTab;
     BOOL                   m_bChatGptTestRunning;
+    BOOL                   m_bQuestionGenerateRunning;
 
     CFont                  m_fontEmphasis;
     CFont                  m_fontGenerateBtn;
@@ -96,23 +106,42 @@ protected:
     void UpdateBankStatusLabel();
     void ShowActiveTab();
     BOOL HitTestSplitter(const CPoint& pt) const;
+    BOOL HitTestGeneratedSplitter(const CPoint& pt) const;
+    void LoadUiSettings();
+    void SaveUiSettings();
     void UpdatePageRangeEnable();
     void UpdatePdfCombo();
     void LoadDummyQuestionText();
     void ReadSettingsFromControls();
+    BOOL NavigatePdfToSourcePage(int nSourcePage);
+    void LogQuestionSelect(
+        const CStringW& strListType,
+        int nDisplayIndex,
+        int nQuestionIndex,
+        const QUESTION_ITEM& item,
+        int nPdfPageBefore,
+        BOOL bMoveResult,
+        int nPdfPageAfter) const;
+    int ResolveGeneratedQuestionIndex(int nListIndex) const;
+    void RefreshGeneratedList();
+    void SelectGeneratedQuestion(int nIndex, BOOL bNavigatePdf = TRUE);
     CStringW GetDummyQuestionText() const;
     CStringW GetSelectedPdfPath() const;
 
     BOOL LoadTestQuestionFile();
-    void DisplayCurrentTestQuestion();
+    void DisplayCurrentTestQuestion(BOOL bNavigatePdf = TRUE);
     void AdvanceToNextTestQuestion();
     BOOL AdoptCurrentTestQuestion(CStringW& strMessage);
     void RefreshBankList();
+    void SelectBankQuestion(int nIndex, BOOL bNavigatePdf = TRUE);
+    int FindBankIndexByCharPos(long nCharPos) const;
     BOOL HasSelectedBankItem() const;
     int GetSelectedBankIndex() const;
     void SetGeneratedActionButtonsEnabled(BOOL bEnabled);
     void SetChatGptTestBusy(BOOL bBusy);
+    void SetQuestionGenerateBusy(BOOL bBusy);
     void StartChatGptConnectionTest(const SCP_OPENAI_CONFIG& config);
+    void StartQuestionGeneration(const OPENAI_GENERATE_REQUEST& request);
 
     afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -122,7 +151,8 @@ protected:
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
     afx_msg void OnTcnSelchangeTab(NMHDR* pNMHDR, LRESULT* pResult);
-    afx_msg void OnLbnSelchangeBankList();
+    afx_msg void OnLbnSelchangeGeneratedList();
+    afx_msg void OnEnSelchangeBankRich(NMHDR* pNMHDR, LRESULT* pResult);
     afx_msg void OnBnClickedSelectPdf();
     afx_msg void OnBnClickedRadioAllPages();
     afx_msg void OnBnClickedRadioPageRange();
@@ -135,6 +165,7 @@ protected:
     afx_msg void OnBnClickedTest();
     afx_msg void OnBnClickedChatGpt();
     afx_msg LRESULT OnChatGptTestDone(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnQuestionGenerateDone(WPARAM wParam, LPARAM lParam);
     afx_msg void OnBnClickedBankDelete();
     afx_msg void OnBnClickedBankMoveUp();
     afx_msg void OnBnClickedBankMoveDown();

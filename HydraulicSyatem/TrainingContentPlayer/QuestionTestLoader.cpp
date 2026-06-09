@@ -25,17 +25,17 @@ namespace
             item.strCreated = strValue;
         else if (strKey.CompareNoCase(L"QUESTION") == 0)
             item.strQuestion = strValue;
-        else if (strKey.CompareNoCase(L"A") == 0)
+        else if (strKey.CompareNoCase(L"A") == 0 || strKey.CompareNoCase(L"CHOICE1") == 0)
             item.strChoice1 = strValue;
-        else if (strKey.CompareNoCase(L"B") == 0)
+        else if (strKey.CompareNoCase(L"B") == 0 || strKey.CompareNoCase(L"CHOICE2") == 0)
             item.strChoice2 = strValue;
-        else if (strKey.CompareNoCase(L"C") == 0)
+        else if (strKey.CompareNoCase(L"C") == 0 || strKey.CompareNoCase(L"CHOICE3") == 0)
             item.strChoice3 = strValue;
-        else if (strKey.CompareNoCase(L"D") == 0)
+        else if (strKey.CompareNoCase(L"D") == 0 || strKey.CompareNoCase(L"CHOICE4") == 0)
             item.strChoice4 = strValue;
         else if (strKey.CompareNoCase(L"ANSWER") == 0)
             item.strAnswer = strValue;
-        else if (strKey.CompareNoCase(L"EXPLAIN") == 0)
+        else if (strKey.CompareNoCase(L"EXPLAIN") == 0 || strKey.CompareNoCase(L"EXPLANATION") == 0)
             item.strExplain = strValue;
     }
 
@@ -93,6 +93,62 @@ CStringW QuestionTestLoader::GetTestQuestionFilePath()
     return TrainingUtil::ResolveAppPath(L"Question\\QuestionListForTest.txt");
 }
 
+BOOL QuestionTestLoader::ParseFromContent(
+    const CStringW& strContent,
+    CQuestionItemArray& outQuestions,
+    CStringW& strError)
+{
+    outQuestions.clear();
+    strError.Empty();
+
+    if (strContent.IsEmpty())
+    {
+        strError = L"응답 내용이 비어 있습니다.";
+        return FALSE;
+    }
+
+    CStringW strNormalized = strContent;
+    strNormalized.Replace(L"\r\n", L"\n");
+    strNormalized.Replace(L"\r", L"\n");
+
+    const CStringW strMarkerStart = L"QSTART";
+    const CStringW strMarkerEnd = L"QEND";
+    int nSearch = 0;
+
+    while (nSearch < strNormalized.GetLength())
+    {
+        const int nStart = strNormalized.Find(strMarkerStart, nSearch);
+        if (nStart < 0)
+            break;
+
+        const int nEnd = strNormalized.Find(strMarkerEnd, nStart + strMarkerStart.GetLength());
+        if (nEnd < 0)
+        {
+            strError = L"QEND가 없는 문제 블록이 있습니다.";
+            return FALSE;
+        }
+
+        CStringW strBlock = strNormalized.Mid(
+            nStart + strMarkerStart.GetLength(),
+            nEnd - (nStart + strMarkerStart.GetLength()));
+
+        QUESTION_ITEM item;
+        if (!ParseQuestionBlock(strBlock, item, strError))
+            return FALSE;
+
+        outQuestions.push_back(item);
+        nSearch = nEnd + strMarkerEnd.GetLength();
+    }
+
+    if (outQuestions.empty())
+    {
+        strError = L"응답에서 유효한 QSTART/QEND 문제 블록을 찾을 수 없습니다.";
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 BOOL QuestionTestLoader::LoadFromFile(
     const CStringW& strFilePath,
     CQuestionItemArray& outQuestions,
@@ -121,42 +177,11 @@ BOOL QuestionTestLoader::LoadFromFile(
         return FALSE;
     }
 
-    CStringW strContent = TrainingUtil::Utf8ToCStringW(strUtf8);
-    strContent.Replace(L"\r\n", L"\n");
-    strContent.Replace(L"\r", L"\n");
-
-    const CStringW strMarkerStart = L"QSTART";
-    const CStringW strMarkerEnd = L"QEND";
-    int nSearch = 0;
-
-    while (nSearch < strContent.GetLength())
+    const CStringW strContent = TrainingUtil::Utf8ToCStringW(strUtf8);
+    if (!ParseFromContent(strContent, outQuestions, strError))
     {
-        const int nStart = strContent.Find(strMarkerStart, nSearch);
-        if (nStart < 0)
-            break;
-
-        const int nEnd = strContent.Find(strMarkerEnd, nStart + strMarkerStart.GetLength());
-        if (nEnd < 0)
-        {
-            strError = L"QEND가 없는 문제 블록이 있습니다.";
-            return FALSE;
-        }
-
-        CStringW strBlock = strContent.Mid(
-            nStart + strMarkerStart.GetLength(),
-            nEnd - (nStart + strMarkerStart.GetLength()));
-
-        QUESTION_ITEM item;
-        if (!ParseQuestionBlock(strBlock, item, strError))
-            return FALSE;
-
-        outQuestions.push_back(item);
-        nSearch = nEnd + strMarkerEnd.GetLength();
-    }
-
-    if (outQuestions.empty())
-    {
-        strError = L"QuestionListForTest.txt에 유효한 문제가 없습니다.";
+        if (strError.Find(L"QSTART/QEND") >= 0)
+            strError = L"QuestionListForTest.txt에 유효한 문제가 없습니다.";
         return FALSE;
     }
 
@@ -176,12 +201,133 @@ CStringW FormatAnswerChoiceLabel(const CStringW& strAnswerLetter)
     return strAnswerLetter;
 }
 
+CStringW FormatQuestionListLabel(
+    const QUESTION_ITEM& item,
+    int nDisplayIndex,
+    const QUESTION_LIST_LABEL_OPTIONS* pOptions)
+{
+    QUESTION_LIST_LABEL_OPTIONS defaultOptions;
+    const QUESTION_LIST_LABEL_OPTIONS& opts = (pOptions != nullptr) ? *pOptions : defaultOptions;
+
+    CStringW strShort = item.strQuestion;
+    strShort.Trim();
+
+    const int nMaxLen = max(16, opts.nMaxTextLength);
+    if (strShort.GetLength() > nMaxLen)
+        strShort = strShort.Left(nMaxLen - 3) + L"...";
+
+    CStringW strPrefix = opts.strAdoptedMark + opts.strModifiedMark + opts.strAnswerMark;
+    if (opts.bShowIndex && nDisplayIndex > 0)
+    {
+        CStringW strIndex;
+        strIndex.Format(L"%d. ", nDisplayIndex);
+        strPrefix += strIndex;
+    }
+
+    CStringW strLabel;
+    if (opts.bShowSourcePage && item.nSourcePage > 0)
+        strLabel.Format(L"%s%s (P.%d)", strPrefix.GetString(), strShort.GetString(), item.nSourcePage);
+    else
+        strLabel.Format(L"%s%s", strPrefix.GetString(), strShort.GetString());
+
+    return strLabel;
+}
+
+BOOL IsQuestionInBank(const QUESTION_ITEM& item, const CQuestionItemArray& bank)
+{
+    for (const QUESTION_ITEM& bankItem : bank)
+    {
+        if (bankItem.strId.CompareNoCase(item.strId) == 0)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+CStringW FormatQuestionBankEntry(
+    const QUESTION_ITEM& item,
+    int nDisplayIndex,
+    const QUESTION_BANK_ENTRY_OPTIONS* pOptions)
+{
+    QUESTION_BANK_ENTRY_OPTIONS defaultOptions;
+    const QUESTION_BANK_ENTRY_OPTIONS& opts = (pOptions != nullptr) ? *pOptions : defaultOptions;
+
+    CStringW strQuestion = item.strQuestion;
+    strQuestion.Trim();
+    if (opts.nMaxQuestionLength > 0 && strQuestion.GetLength() > opts.nMaxQuestionLength)
+        strQuestion = strQuestion.Left(opts.nMaxQuestionLength - 3) + L"...";
+
+    CStringW strEntry;
+    if (opts.bShowSourcePage && item.nSourcePage > 0)
+    {
+        strEntry.Format(
+            L"%d. %s (P.%d)",
+            nDisplayIndex,
+            strQuestion.GetString(),
+            item.nSourcePage);
+    }
+    else
+    {
+        strEntry.Format(L"%d. %s", nDisplayIndex, strQuestion.GetString());
+    }
+
+    if (!opts.bShowChoices)
+        return strEntry;
+
+    CStringW strChoices;
+    if (!item.strChoice1.IsEmpty())
+        strChoices += L"\r\n① " + item.strChoice1;
+    else
+        strChoices += L"\r\n①";
+
+    if (!item.strChoice2.IsEmpty())
+        strChoices += L"\r\n② " + item.strChoice2;
+    else
+        strChoices += L"\r\n②";
+
+    if (!item.strChoice3.IsEmpty())
+        strChoices += L"\r\n③ " + item.strChoice3;
+    else
+        strChoices += L"\r\n③";
+
+    if (!item.strChoice4.IsEmpty())
+        strChoices += L"\r\n④ " + item.strChoice4;
+    else
+        strChoices += L"\r\n④";
+
+    strEntry += strChoices;
+
+    if (opts.bShowAnswer && !item.strAnswer.IsEmpty())
+    {
+        CStringW strAnswer;
+        strAnswer.Format(
+            L"\r\n정답 : %s",
+            FormatAnswerChoiceLabel(item.strAnswer).GetString());
+        strEntry += strAnswer;
+    }
+
+    if (opts.bShowExplain && !item.strExplain.IsEmpty())
+        strEntry += L"\r\n해설 : " + item.strExplain;
+
+    return strEntry;
+}
+
 CStringW FormatQuestionDisplayText(const QUESTION_ITEM& item)
 {
     CStringW strText;
     const int nDisplayNo = (item.nNo > 0) ? item.nNo : 1;
 
-    strText.Format(L"문제 %d.\r\n\r\n%s\r\n\r\n", nDisplayNo, item.strQuestion);
+    if (item.nSourcePage > 0)
+    {
+        strText.Format(
+            L"문제 %d. (출처 PDF p.%d)\r\n\r\n%s\r\n\r\n",
+            nDisplayNo,
+            item.nSourcePage,
+            item.strQuestion.GetString());
+    }
+    else
+    {
+        strText.Format(L"문제 %d.\r\n\r\n%s\r\n\r\n", nDisplayNo, item.strQuestion.GetString());
+    }
 
     if (!item.strChoice1.IsEmpty())
         strText += L"① " + item.strChoice1 + L"\r\n";

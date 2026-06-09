@@ -122,13 +122,20 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="ImageViewCtrl.h" />
     <ClInclude Include="ImageViewDlg.h" />
+    <ClInclude Include="GeneratedQuestionListBox.h" />
     <ClInclude Include="PdfCoverViewCtrl.h" />
     <ClInclude Include="PdfRenderEngine.h" />
     <ClInclude Include="PdfViewerCtrl.h" />
     <ClInclude Include="QuestionItem.h" />
+    <ClInclude Include="OpenAiClient.h" />
     <ClInclude Include="OpenAiConnectionTest.h" />
+    <ClInclude Include="OpenAiQuestionGenerator.h" />
+    <ClInclude Include="PdfTextExtractor.h" />
+    <ClInclude Include="PromptLoader.h" />
     <ClInclude Include="QuestionTestLoader.h" />
     <ClInclude Include="ScpConfigReader.h" />
+    <ClInclude Include="ScpPaths.h" />
+    <ClInclude Include="ScpUiSettings.h" />
     <ClInclude Include="QuizGenViewCtrl.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -143,14 +150,21 @@
     <ClInclude Include="VideoViewDlg.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="GeneratedQuestionListBox.cpp" />
     <ClCompile Include="ImageViewCtrl.cpp" />
     <ClCompile Include="ImageViewDlg.cpp" />
     <ClCompile Include="PdfCoverViewCtrl.cpp" />
     <ClCompile Include="PdfRenderEngine.cpp" />
     <ClCompile Include="PdfViewerCtrl.cpp" />
+    <ClCompile Include="OpenAiClient.cpp" />
     <ClCompile Include="OpenAiConnectionTest.cpp" />
+    <ClCompile Include="OpenAiQuestionGenerator.cpp" />
+    <ClCompile Include="PdfTextExtractor.cpp" />
+    <ClCompile Include="PromptLoader.cpp" />
     <ClCompile Include="QuestionTestLoader.cpp" />
     <ClCompile Include="ScpConfigReader.cpp" />
+    <ClCompile Include="ScpPaths.cpp" />
+    <ClCompile Include="ScpUiSettings.cpp" />
     <ClCompile Include="QuizGenViewCtrl.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

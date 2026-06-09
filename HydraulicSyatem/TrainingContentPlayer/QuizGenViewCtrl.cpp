@@ -2,7 +2,12 @@
 #include "QuizGenViewCtrl.h"
 #include "QuestionTestLoader.h"
 #include "ScpConfigReader.h"
+#include "ScpUiSettings.h"
+#include "ScpPaths.h"
+#include "OpenAiClient.h"
 #include "Resource.h"
+
+#include <fstream>
 #include "Util.h"
 
 #include <memory>
@@ -24,6 +29,8 @@ namespace
     constexpr int BANK_STATUS_H = 28;
     constexpr int BANK_BOTTOM_PANEL_H = BANK_TOOLBAR_H + 8 + BANK_STATUS_H + 4;
     constexpr int GENERATE_BTN_H = 32;
+    constexpr int GENERATED_PANE_MIN_H = 150;
+    constexpr int GENERATED_SPLITTER_WIDTH = 6;
     constexpr int EMPHASIS_FONT_PT = 110;
     constexpr int GENERATE_FONT_PT = 120;
     constexpr int FORM_LABEL_W = 72;
@@ -71,6 +78,28 @@ namespace
 
         return sz.cx + nPadding;
     }
+
+    void CalcGeneratedPaneHeights(
+        int nBodyHeight,
+        double dListSplitRatio,
+        int& nListHeight,
+        int& nDetailHeight)
+    {
+        nListHeight = 0;
+        nDetailHeight = 0;
+
+        if (nBodyHeight <= GENERATED_SPLITTER_WIDTH)
+            return;
+
+        const int nSplitAreaH = nBodyHeight - GENERATED_SPLITTER_WIDTH;
+        dListSplitRatio = max(0.05, min(0.95, dListSplitRatio));
+
+        nListHeight = static_cast<int>(nSplitAreaH * dListSplitRatio);
+        nListHeight = max(
+            GENERATED_PANE_MIN_H,
+            min(nListHeight, nSplitAreaH - GENERATED_PANE_MIN_H));
+        nDetailHeight = nSplitAreaH - nListHeight;
+    }
 }
 
 BEGIN_MESSAGE_MAP(CQuizGenViewCtrl, CWnd)
@@ -82,7 +111,8 @@ BEGIN_MESSAGE_MAP(CQuizGenViewCtrl, CWnd)
     ON_WM_MOUSEMOVE()
     ON_WM_SETCURSOR()
     ON_NOTIFY(TCN_SELCHANGE, IDC_QUIZGEN_TAB, &CQuizGenViewCtrl::OnTcnSelchangeTab)
-    ON_LBN_SELCHANGE(IDC_QUIZGEN_BANK_LIST, &CQuizGenViewCtrl::OnLbnSelchangeBankList)
+    ON_LBN_SELCHANGE(IDC_QUIZGEN_GENERATED_LIST, &CQuizGenViewCtrl::OnLbnSelchangeGeneratedList)
+    ON_NOTIFY(EN_SELCHANGE, IDC_QUIZGEN_BANK_LIST, &CQuizGenViewCtrl::OnEnSelchangeBankRich)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_SELECT_PDF, &CQuizGenViewCtrl::OnBnClickedSelectPdf)
     ON_BN_CLICKED(IDC_QUIZGEN_RADIO_ALL_PAGES, &CQuizGenViewCtrl::OnBnClickedRadioAllPages)
     ON_BN_CLICKED(IDC_QUIZGEN_RADIO_PAGE_RANGE, &CQuizGenViewCtrl::OnBnClickedRadioPageRange)
@@ -95,6 +125,7 @@ BEGIN_MESSAGE_MAP(CQuizGenViewCtrl, CWnd)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_TEST, &CQuizGenViewCtrl::OnBnClickedTest)
     ON_BN_CLICKED(IDC_QUIZGEN_BTN_CHATGPT, &CQuizGenViewCtrl::OnBnClickedChatGpt)
     ON_MESSAGE(WM_QUIZGEN_CHATGPT_DONE, &CQuizGenViewCtrl::OnChatGptTestDone)
+    ON_MESSAGE(WM_QUIZGEN_GENERATE_DONE, &CQuizGenViewCtrl::OnQuestionGenerateDone)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_DELETE, &CQuizGenViewCtrl::OnBnClickedBankDelete)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_MOVE_UP, &CQuizGenViewCtrl::OnBnClickedBankMoveUp)
     ON_BN_CLICKED(IDC_QUIZGEN_BANK_BTN_MOVE_DOWN, &CQuizGenViewCtrl::OnBnClickedBankMoveDown)
@@ -102,20 +133,36 @@ END_MESSAGE_MAP()
 
 CQuizGenViewCtrl::CQuizGenViewCtrl()
     : m_nSelectedPdfIndex(-1)
-    , m_dSplitRatio(0.5)
+    , m_dSplitRatio(ScpUiSettings::kPdfSplitDefault)
+    , m_dGeneratedListSplitRatio(ScpUiSettings::kGeneratedListSplitDefault)
     , m_bDraggingSplit(FALSE)
+    , m_bDraggingGeneratedSplit(FALSE)
     , m_nCurrentTestQuestion(-1)
     , m_nSelectedBankIndex(-1)
     , m_bTestQuestionsLoaded(FALSE)
     , m_nActiveTab(TAB_GENERATED)
     , m_bChatGptTestRunning(FALSE)
+    , m_bQuestionGenerateRunning(FALSE)
 {
 }
 
 CQuizGenViewCtrl::~CQuizGenViewCtrl()
 {
+    SaveUiSettings();
+
     if (::IsWindow(m_pdfPreview.GetSafeHwnd()))
         m_pdfPreview.CloseDocument();
+}
+
+void CQuizGenViewCtrl::LoadUiSettings()
+{
+    ScpUiSettings::LoadGeneratedListSplitRatio(m_dGeneratedListSplitRatio);
+    ScpUiSettings::LoadPdfSplitRatio(m_dSplitRatio);
+}
+
+void CQuizGenViewCtrl::SaveUiSettings()
+{
+    ScpUiSettings::SaveQuizGenLayout(m_dGeneratedListSplitRatio, m_dSplitRatio);
 }
 
 BOOL CQuizGenViewCtrl::CreateOverPlaceholder(CWnd* pParent, CWnd* pPlaceholder, UINT nHostId)
@@ -162,6 +209,7 @@ int CQuizGenViewCtrl::OnCreate(LPCREATESTRUCT lpCreateStruct)
     if (CWnd::OnCreate(lpCreateStruct) == -1)
         return -1;
 
+    LoadUiSettings();
     CreateChildControls();
     LoadDummyQuestionText();
     RefreshBankList();
@@ -179,8 +227,12 @@ void CQuizGenViewCtrl::CreateChildControls()
     const DWORD dwRadioStyle = WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON;
     const DWORD dwRichStyle =
         WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | ES_MULTILINE | ES_AUTOVSCROLL;
-    const DWORD dwListStyle =
-        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT;
+    const DWORD dwGeneratedListStyle =
+        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL |
+        LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOINTEGRALHEIGHT;
+    const DWORD dwBankRichStyle =
+        WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL |
+        ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY;
 
     m_staticPdfLabel.Create(L"PDF 파일 :", dwStaticStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_PDF_LABEL);
     m_comboPdf.Create(dwComboStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_PDF_COMBO);
@@ -219,8 +271,10 @@ void CQuizGenViewCtrl::CreateChildControls()
         IDC_QUIZGEN_PDF_PREVIEW);
     m_pdfPreview.SetEmbeddedPreviewMode(TRUE);
 
+    m_listGenerated.Create(dwGeneratedListStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_GENERATED_LIST);
     m_richQuestion.Create(dwRichStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_RICHEDIT);
-    m_listBank.Create(dwListStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_LIST);
+    m_richBank.Create(dwBankRichStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_LIST);
+    m_richBank.SetBackgroundColor(FALSE, RGB(252, 252, 252));
 
     m_btnBankDelete.Create(L"삭제", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_BTN_DELETE);
     m_btnBankMoveUp.Create(L"위로 이동", dwBtnStyle, CRect(0, 0, 0, 0), this, IDC_QUIZGEN_BANK_BTN_MOVE_UP);
@@ -260,7 +314,7 @@ void CQuizGenViewCtrl::CreateChildControls()
         &m_staticPageEndLabel, &m_editPageEnd,
         &m_staticCountLabel, &m_editQuestionCount, &m_btnGenerate,
         &m_staticPreviewLabel, &m_tabQuestion,
-        &m_richQuestion, &m_listBank,
+        &m_listGenerated, &m_richQuestion, &m_richBank,
         &m_btnBankDelete, &m_btnBankMoveUp, &m_btnBankMoveDown, &m_staticBankCount,
         &m_btnUse, &m_btnRegenerate, &m_btnAddMore, &m_btnSave, &m_btnTest, &m_btnChatGpt,
         &m_staticChatGptProgress
@@ -433,13 +487,40 @@ void CQuizGenViewCtrl::UpdateLayout()
     const int nContentBottom = nCenterTop + nCenterHeight;
     const int nGenActionY = nContentBottom - GENERATED_ACTION_H - 4;
     const int nProgressY = nGenActionY - CHATGPT_PROGRESS_H - 4;
-    const int nGeneratedRichHeight = max(0, nProgressY - nContentTop - 4);
+    const int nGeneratedBodyHeight = max(0, nProgressY - nContentTop - 4);
+    m_rcGeneratedBody.SetRect(nRightX, nContentTop, nRightX + nRightPaneW, nContentTop + nGeneratedBodyHeight);
+
+    int nGeneratedListH = 0;
+    int nGeneratedDetailH = 0;
+    CalcGeneratedPaneHeights(
+        nGeneratedBodyHeight,
+        m_dGeneratedListSplitRatio,
+        nGeneratedListH,
+        nGeneratedDetailH);
+
+    const int nSplitAreaH = max(0, nGeneratedBodyHeight - GENERATED_SPLITTER_WIDTH);
+    if (nSplitAreaH > 0)
+    {
+        m_dGeneratedListSplitRatio =
+            static_cast<double>(nGeneratedListH) / static_cast<double>(nSplitAreaH);
+    }
+
+    const int nGeneratedSplitterY = nContentTop + nGeneratedListH;
+    m_rcGeneratedSplitter.SetRect(
+        nRightX,
+        nGeneratedSplitterY,
+        nRightX + nRightPaneW,
+        nGeneratedSplitterY + GENERATED_SPLITTER_WIDTH);
+
+    const int nGeneratedRichTop = nGeneratedSplitterY + GENERATED_SPLITTER_WIDTH;
     const int nBankToolbarY = nContentBottom - BANK_BOTTOM_PANEL_H + 4;
     const int nBankStatusY = nContentBottom - BANK_STATUS_H - 4;
     const int nBankListHeight = max(0, nBankToolbarY - nContentTop - 4);
 
-    place(m_richQuestion, nRightX, nContentTop, nRightPaneW, nGeneratedRichHeight);
-    place(m_listBank, nRightX, nContentTop, nRightPaneW, nBankListHeight);
+    place(m_listGenerated, nRightX, nContentTop, nRightPaneW, nGeneratedListH);
+    place(m_richQuestion, nRightX, nGeneratedRichTop, nRightPaneW, nGeneratedDetailH);
+    InvalidateRect(&m_rcGeneratedSplitter, FALSE);
+    place(m_richBank, nRightX, nContentTop, nRightPaneW, nBankListHeight);
 
     const int nBankBtnGap = 8;
     const int nBankDeleteW = GetTextWidth(this, L"삭제", 28);
@@ -488,10 +569,12 @@ void CQuizGenViewCtrl::ShowActiveTab()
 
     const BOOL bGenerated = (m_nActiveTab == TAB_GENERATED);
 
+    if (::IsWindow(m_listGenerated.GetSafeHwnd()))
+        m_listGenerated.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_richQuestion.GetSafeHwnd()))
         m_richQuestion.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
-    if (::IsWindow(m_listBank.GetSafeHwnd()))
-        m_listBank.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
+    if (::IsWindow(m_richBank.GetSafeHwnd()))
+        m_richBank.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
     if (::IsWindow(m_btnBankDelete.GetSafeHwnd()))
         m_btnBankDelete.ShowWindow(bGenerated ? SW_HIDE : SW_SHOW);
     if (::IsWindow(m_btnBankMoveUp.GetSafeHwnd()))
@@ -513,8 +596,12 @@ void CQuizGenViewCtrl::ShowActiveTab()
     if (::IsWindow(m_btnChatGpt.GetSafeHwnd()))
         m_btnChatGpt.ShowWindow(bGenerated ? SW_SHOW : SW_HIDE);
     if (::IsWindow(m_staticChatGptProgress.GetSafeHwnd()))
+    {
         m_staticChatGptProgress.ShowWindow(
-            (bGenerated && m_bChatGptTestRunning) ? SW_SHOW : SW_HIDE);
+            (bGenerated && (m_bChatGptTestRunning || m_bQuestionGenerateRunning))
+                ? SW_SHOW
+                : SW_HIDE);
+    }
 }
 
 void CQuizGenViewCtrl::UpdateBankStatusLabel()
@@ -528,13 +615,255 @@ void CQuizGenViewCtrl::UpdateBankStatusLabel()
 void CQuizGenViewCtrl::OnTcnSelchangeTab(NMHDR* /*pNMHDR*/, LRESULT* pResult)
 {
     ShowActiveTab();
+    Invalidate(FALSE);
     if (pResult != nullptr)
         *pResult = 0;
 }
 
-void CQuizGenViewCtrl::OnLbnSelchangeBankList()
+void CQuizGenViewCtrl::LogQuestionSelect(
+    const CStringW& strListType,
+    int nDisplayIndex,
+    int nQuestionIndex,
+    const QUESTION_ITEM& item,
+    int nPdfPageBefore,
+    BOOL bMoveResult,
+    int nPdfPageAfter) const
 {
-    m_nSelectedBankIndex = m_listBank.GetCurSel();
+    CStringW strEntry;
+    strEntry.Format(
+        L"[QUESTION_SELECT]\r\n"
+        L"ListType=%s\r\n"
+        L"DisplayIndex=%d\r\n"
+        L"QuestionIndex=%d\r\n"
+        L"QuestionText=%s\r\n"
+        L"SourcePage=%d\r\n"
+        L"CurrentPdfPageBefore=%d\r\n"
+        L"MovePdfToPageResult=%s\r\n"
+        L"CurrentPdfPageAfter=%d\r\n",
+        strListType.GetString(),
+        nDisplayIndex,
+        nQuestionIndex,
+        item.strQuestion.GetString(),
+        item.nSourcePage,
+        nPdfPageBefore,
+        bMoveResult ? L"TRUE" : L"FALSE",
+        nPdfPageAfter);
+
+    TRACE(L"%s\n", strEntry.GetString());
+
+    const CStringW strPath = ScpPaths::GetLogFolder() + L"QuestionSelect.txt";
+    try
+    {
+        std::ofstream ofs(strPath, std::ios::binary | std::ios::app);
+        if (!ofs.is_open())
+            return;
+
+        const CStringW strFull =
+            L"[" + OpenAiClient::GetCurrentTimestamp() + L"]\r\n" + strEntry + L"\r\n";
+        const std::string strUtf8 = TrainingUtil::CStringWToUtf8(strFull);
+        ofs.write(strUtf8.data(), static_cast<std::streamsize>(strUtf8.size()));
+    }
+    catch (...)
+    {
+    }
+}
+
+BOOL CQuizGenViewCtrl::NavigatePdfToSourcePage(int nSourcePage)
+{
+    if (nSourcePage < 1 || !::IsWindow(m_pdfPreview.GetSafeHwnd()))
+        return FALSE;
+
+    if (!m_pdfPreview.IsDocumentOpen())
+    {
+        ReadSettingsFromControls();
+        const CStringW strPdf = GetSelectedPdfPath();
+        if (!strPdf.IsEmpty())
+            m_pdfPreview.OpenDocument(strPdf);
+    }
+
+    if (!m_pdfPreview.IsDocumentOpen())
+        return FALSE;
+
+    return m_pdfPreview.GoToPage(nSourcePage);
+}
+
+int CQuizGenViewCtrl::ResolveGeneratedQuestionIndex(int nListIndex) const
+{
+    if (nListIndex < 0 || !::IsWindow(m_listGenerated.GetSafeHwnd()))
+        return -1;
+
+    const DWORD_PTR dwItemData = m_listGenerated.GetItemData(nListIndex);
+    if (dwItemData == static_cast<DWORD_PTR>(LB_ERR))
+        return nListIndex;
+
+    const int nQuestionIndex =
+        CGeneratedQuestionListBox::GetQuestionIndexFromItemData(dwItemData);
+    if (nQuestionIndex >= 0 &&
+        nQuestionIndex < static_cast<int>(m_TestQuestionList.size()))
+    {
+        return nQuestionIndex;
+    }
+
+    return nListIndex;
+}
+
+void CQuizGenViewCtrl::RefreshGeneratedList()
+{
+    if (!::IsWindow(m_listGenerated.GetSafeHwnd()))
+        return;
+
+    m_listGenerated.ResetContent();
+
+    QUESTION_LIST_LABEL_OPTIONS labelOptions;
+    labelOptions.bShowIndex = TRUE;
+    labelOptions.bShowSourcePage = TRUE;
+    labelOptions.nMaxTextLength = 96;
+
+    for (int i = 0; i < static_cast<int>(m_TestQuestionList.size()); ++i)
+    {
+        const QUESTION_ITEM& item = m_TestQuestionList[i];
+        QUESTION_LIST_LABEL_OPTIONS itemOptions = labelOptions;
+
+        if (IsQuestionInBank(item, m_SelectedQuestionList))
+            itemOptions.strAdoptedMark = L"✓ ";
+
+        const int nIndex = m_listGenerated.AddString(
+            FormatQuestionListLabel(item, i + 1, &itemOptions));
+        if (nIndex != LB_ERR)
+        {
+            m_listGenerated.SetItemData(
+                nIndex,
+                CGeneratedQuestionListBox::MakeItemData(
+                    i,
+                    IsQuestionInBank(item, m_SelectedQuestionList)));
+        }
+    }
+
+    if (m_TestQuestionList.empty())
+        return;
+
+    if (m_nCurrentTestQuestion < 0 ||
+        m_nCurrentTestQuestion >= static_cast<int>(m_TestQuestionList.size()))
+    {
+        m_nCurrentTestQuestion = 0;
+    }
+
+    m_listGenerated.SetCurSel(m_nCurrentTestQuestion);
+    m_listGenerated.Invalidate(FALSE);
+}
+
+void CQuizGenViewCtrl::SelectGeneratedQuestion(int nIndex, BOOL bNavigatePdf)
+{
+    if (nIndex < 0 || nIndex >= static_cast<int>(m_TestQuestionList.size()))
+        return;
+
+    m_nCurrentTestQuestion = nIndex;
+    const QUESTION_ITEM& item = m_TestQuestionList[nIndex];
+
+    if (::IsWindow(m_listGenerated.GetSafeHwnd()) &&
+        m_listGenerated.IsWindowVisible() &&
+        m_listGenerated.GetCurSel() != nIndex)
+    {
+        m_listGenerated.SetCurSel(nIndex);
+    }
+
+    m_richQuestion.SetWindowText(FormatQuestionDisplayText(item));
+
+    if (bNavigatePdf)
+    {
+        const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
+        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
+        LogQuestionSelect(
+            L"Generated",
+            nIndex + 1,
+            nIndex,
+            item,
+            nPdfBefore,
+            bMoved,
+            nPdfAfter);
+    }
+}
+
+void CQuizGenViewCtrl::OnLbnSelchangeGeneratedList()
+{
+    const int nListIndex = m_listGenerated.GetCurSel();
+    if (nListIndex < 0)
+        return;
+
+    const int nQuestionIndex = ResolveGeneratedQuestionIndex(nListIndex);
+    SelectGeneratedQuestion(nQuestionIndex, TRUE);
+}
+
+int CQuizGenViewCtrl::FindBankIndexByCharPos(long nCharPos) const
+{
+    if (m_arrBankBlockStarts.empty() || nCharPos < 0)
+        return -1;
+
+    for (int i = static_cast<int>(m_arrBankBlockStarts.size()) - 1; i >= 0; --i)
+    {
+        if (nCharPos >= m_arrBankBlockStarts[static_cast<size_t>(i)])
+            return i;
+    }
+
+    return -1;
+}
+
+void CQuizGenViewCtrl::SelectBankQuestion(int nIndex, BOOL bNavigatePdf)
+{
+    if (nIndex < 0 || nIndex >= static_cast<int>(m_SelectedQuestionList.size()))
+        return;
+
+    m_nSelectedBankIndex = nIndex;
+
+    if (::IsWindow(m_richBank.GetSafeHwnd()) && !m_arrBankBlockStarts.empty())
+    {
+        const long nStart = m_arrBankBlockStarts[static_cast<size_t>(nIndex)];
+        long nEnd = 0;
+        if (nIndex + 1 < static_cast<int>(m_arrBankBlockStarts.size()))
+            nEnd = m_arrBankBlockStarts[static_cast<size_t>(nIndex + 1)];
+        else
+            nEnd = m_richBank.GetWindowTextLength();
+
+        m_richBank.SetSel(nStart, nEnd);
+    }
+
+    if (bNavigatePdf)
+    {
+        const QUESTION_ITEM& item = m_SelectedQuestionList[nIndex];
+        const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
+        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
+        LogQuestionSelect(
+            L"Temp",
+            nIndex + 1,
+            nIndex,
+            item,
+            nPdfBefore,
+            bMoved,
+            nPdfAfter);
+    }
+}
+
+void CQuizGenViewCtrl::OnEnSelchangeBankRich(NMHDR* /*pNMHDR*/, LRESULT* pResult)
+{
+    if (!::IsWindow(m_richBank.GetSafeHwnd()))
+    {
+        if (pResult != nullptr)
+            *pResult = 0;
+        return;
+    }
+
+    long nStart = 0;
+    long nEnd = 0;
+    m_richBank.GetSel(nStart, nEnd);
+
+    const int nIndex = FindBankIndexByCharPos(nStart);
+    if (nIndex >= 0)
+        SelectBankQuestion(nIndex, TRUE);
+
+    if (pResult != nullptr)
+        *pResult = 0;
 }
 
 BOOL CQuizGenViewCtrl::HasSelectedBankItem() const
@@ -552,17 +881,29 @@ int CQuizGenViewCtrl::GetSelectedBankIndex() const
 
 void CQuizGenViewCtrl::RefreshBankList()
 {
-    if (!::IsWindow(m_listBank.GetSafeHwnd()))
+    if (!::IsWindow(m_richBank.GetSafeHwnd()))
         return;
 
-    m_listBank.ResetContent();
+    m_arrBankBlockStarts.clear();
 
-    for (int i = 0; i < static_cast<int>(m_SelectedQuestionList.size()); ++i)
+    QUESTION_BANK_ENTRY_OPTIONS bankOptions;
+    bankOptions.bShowChoices = TRUE;
+    bankOptions.bShowSourcePage = TRUE;
+    bankOptions.bShowAnswer = FALSE;
+    bankOptions.bShowExplain = FALSE;
+
+    CStringW strDocument;
+    const int nCount = static_cast<int>(m_SelectedQuestionList.size());
+    for (int i = 0; i < nCount; ++i)
     {
-        CStringW strLine;
-        strLine.Format(L"%d. %s", i + 1, m_SelectedQuestionList[i].strQuestion.GetString());
-        m_listBank.AddString(strLine);
+        m_arrBankBlockStarts.push_back(static_cast<long>(strDocument.GetLength()));
+        strDocument += FormatQuestionBankEntry(m_SelectedQuestionList[i], i + 1, &bankOptions);
+        if (i + 1 < nCount)
+            strDocument += L"\r\n\r\n";
     }
+
+    m_richBank.SetWindowText(strDocument);
+    UpdateBankStatusLabel();
 
     if (m_SelectedQuestionList.empty())
     {
@@ -576,8 +917,7 @@ void CQuizGenViewCtrl::RefreshBankList()
         m_nSelectedBankIndex = 0;
     }
 
-    m_listBank.SetCurSel(m_nSelectedBankIndex);
-    UpdateBankStatusLabel();
+    SelectBankQuestion(m_nSelectedBankIndex, TRUE);
 }
 
 BOOL CQuizGenViewCtrl::LoadTestQuestionFile()
@@ -600,7 +940,7 @@ BOOL CQuizGenViewCtrl::LoadTestQuestionFile()
     return TRUE;
 }
 
-void CQuizGenViewCtrl::DisplayCurrentTestQuestion()
+void CQuizGenViewCtrl::DisplayCurrentTestQuestion(BOOL bNavigatePdf)
 {
     if (!m_bTestQuestionsLoaded ||
         m_nCurrentTestQuestion < 0 ||
@@ -609,8 +949,31 @@ void CQuizGenViewCtrl::DisplayCurrentTestQuestion()
         return;
     }
 
-    m_richQuestion.SetWindowText(
-        FormatQuestionDisplayText(m_TestQuestionList[m_nCurrentTestQuestion]));
+    const QUESTION_ITEM& item = m_TestQuestionList[m_nCurrentTestQuestion];
+
+    if (::IsWindow(m_listGenerated.GetSafeHwnd()) &&
+        m_listGenerated.IsWindowVisible() &&
+        m_listGenerated.GetCurSel() != m_nCurrentTestQuestion)
+    {
+        m_listGenerated.SetCurSel(m_nCurrentTestQuestion);
+    }
+
+    m_richQuestion.SetWindowText(FormatQuestionDisplayText(item));
+
+    if (bNavigatePdf)
+    {
+        const int nPdfBefore = m_pdfPreview.GetCurrentPageOneBased();
+        const BOOL bMoved = NavigatePdfToSourcePage(item.nSourcePage);
+        const int nPdfAfter = m_pdfPreview.GetCurrentPageOneBased();
+        LogQuestionSelect(
+            L"Generated",
+            m_nCurrentTestQuestion + 1,
+            m_nCurrentTestQuestion,
+            item,
+            nPdfBefore,
+            bMoved,
+            nPdfAfter);
+    }
 }
 
 void CQuizGenViewCtrl::AdvanceToNextTestQuestion()
@@ -651,8 +1014,11 @@ BOOL CQuizGenViewCtrl::AdoptCurrentTestQuestion(CStringW& strMessage)
         }
     }
 
-    m_SelectedQuestionList.push_back(item);
+    QUESTION_ITEM adoptedItem = item;
+    adoptedItem.bUseFlag = TRUE;
+    m_SelectedQuestionList.push_back(adoptedItem);
     RefreshBankList();
+    RefreshGeneratedList();
     strMessage.Format(
         L"문제가 임시 문제집에 추가되었습니다.\r\n\r\n현재 저장된 문제 : %d 문제",
         static_cast<int>(m_SelectedQuestionList.size()));
@@ -669,6 +1035,20 @@ BOOL CQuizGenViewCtrl::HitTestSplitter(const CPoint& pt) const
     return rcHit.PtInRect(pt);
 }
 
+BOOL CQuizGenViewCtrl::HitTestGeneratedSplitter(const CPoint& pt) const
+{
+    if (!::IsWindow(m_tabQuestion.GetSafeHwnd()) ||
+        m_tabQuestion.GetCurSel() != TAB_GENERATED ||
+        m_rcGeneratedSplitter.IsRectEmpty())
+    {
+        return FALSE;
+    }
+
+    CRect rcHit = m_rcGeneratedSplitter;
+    rcHit.InflateRect(0, 4);
+    return rcHit.PtInRect(pt);
+}
+
 void CQuizGenViewCtrl::OnPaint()
 {
     CPaintDC dc(this);
@@ -678,10 +1058,23 @@ void CQuizGenViewCtrl::OnPaint()
         CRect rcDraw = m_rcSplitter;
         dc.DrawEdge(rcDraw, EDGE_ETCHED, BF_RECT);
     }
+
+    if (m_nActiveTab == TAB_GENERATED && !m_rcGeneratedSplitter.IsRectEmpty())
+    {
+        CRect rcDraw = m_rcGeneratedSplitter;
+        dc.DrawEdge(rcDraw, EDGE_ETCHED, BF_RECT);
+    }
 }
 
 void CQuizGenViewCtrl::OnLButtonDown(UINT nFlags, CPoint point)
 {
+    if (HitTestGeneratedSplitter(point))
+    {
+        m_bDraggingGeneratedSplit = TRUE;
+        SetCapture();
+        return;
+    }
+
     if (HitTestSplitter(point))
     {
         m_bDraggingSplit = TRUE;
@@ -689,16 +1082,47 @@ void CQuizGenViewCtrl::OnLButtonDown(UINT nFlags, CPoint point)
         return;
     }
 
+    if (::IsWindow(m_tabQuestion.GetSafeHwnd()) &&
+        m_tabQuestion.GetCurSel() == TAB_BANK &&
+        ::IsWindow(m_richBank.GetSafeHwnd()) &&
+        m_richBank.IsWindowVisible())
+    {
+        CRect rcBank;
+        m_richBank.GetWindowRect(&rcBank);
+        ScreenToClient(&rcBank);
+        if (rcBank.PtInRect(point))
+        {
+            CPoint ptBank = point;
+            ClientToScreen(&ptBank);
+            m_richBank.ScreenToClient(&ptBank);
+
+            const int nCharIndex = static_cast<int>(LOWORD(m_richBank.CharFromPos(ptBank)));
+            const int nIndex = FindBankIndexByCharPos(nCharIndex);
+            if (nIndex >= 0)
+                SelectBankQuestion(nIndex, TRUE);
+        }
+    }
+
     CWnd::OnLButtonDown(nFlags, point);
 }
 
 void CQuizGenViewCtrl::OnLButtonUp(UINT nFlags, CPoint point)
 {
+    if (m_bDraggingGeneratedSplit)
+    {
+        m_bDraggingGeneratedSplit = FALSE;
+        if (GetCapture() == this)
+            ReleaseCapture();
+        SaveUiSettings();
+        return;
+    }
+
     if (m_bDraggingSplit)
     {
         m_bDraggingSplit = FALSE;
         if (GetCapture() == this)
             ReleaseCapture();
+        SaveUiSettings();
         return;
     }
 
@@ -707,6 +1131,26 @@ void CQuizGenViewCtrl::OnLButtonUp(UINT nFlags, CPoint point)
 
 void CQuizGenViewCtrl::OnMouseMove(UINT nFlags, CPoint point)
 {
+    if (m_bDraggingGeneratedSplit)
+    {
+        const int nBodyTop = m_rcGeneratedBody.top;
+        const int nBodyHeight = m_rcGeneratedBody.Height();
+        const int nSplitAreaH = max(0, nBodyHeight - GENERATED_SPLITTER_WIDTH);
+
+        if (nSplitAreaH > 0)
+        {
+            int nListH = point.y - nBodyTop;
+            nListH = max(
+                GENERATED_PANE_MIN_H,
+                min(nListH, nSplitAreaH - GENERATED_PANE_MIN_H));
+            m_dGeneratedListSplitRatio =
+                static_cast<double>(nListH) / static_cast<double>(nSplitAreaH);
+        }
+
+        UpdateLayout();
+        return;
+    }
+
     if (m_bDraggingSplit)
     {
         CRect rcClient;
@@ -722,7 +1166,7 @@ void CQuizGenViewCtrl::OnMouseMove(UINT nFlags, CPoint point)
         nLeftPaneW = max(nMinLeft, min(nLeftPaneW, nSplitAreaW - nMinRight));
         m_dSplitRatio = (nSplitAreaW > 0)
             ? static_cast<double>(nLeftPaneW) / static_cast<double>(nSplitAreaW)
-            : 0.5;
+            : ScpUiSettings::kPdfSplitDefault;
 
         UpdateLayout();
         return;
@@ -738,6 +1182,12 @@ BOOL CQuizGenViewCtrl::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
         CPoint pt;
         GetCursorPos(&pt);
         ScreenToClient(&pt);
+
+        if (HitTestGeneratedSplitter(pt))
+        {
+            ::SetCursor(::LoadCursor(nullptr, IDC_SIZENS));
+            return TRUE;
+        }
 
         if (HitTestSplitter(pt))
         {
@@ -893,11 +1343,40 @@ void CQuizGenViewCtrl::OnCbnSelchangePdfCombo()
 
 void CQuizGenViewCtrl::OnBnClickedGenerate()
 {
+    if (m_bQuestionGenerateRunning || m_bChatGptTestRunning)
+        return;
+
     ReadSettingsFromControls();
-    AfxMessageBox(
-        L"[UI 단계] 문제 생성\r\n\r\n"
-        L"ChatGPT API 연동 후 실제 문제 생성이 구현됩니다.",
-        MB_OK | MB_ICONINFORMATION);
+
+    if (m_settings.strPdfPath.IsEmpty())
+    {
+        AfxMessageBox(L"PDF 파일을 선택하세요.", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (m_settings.nQuestionCount < 1)
+    {
+        AfxMessageBox(L"문제 개수는 1 이상이어야 합니다.", MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    SCP_OPENAI_CONFIG config;
+    CStringW strConfigError;
+    if (!ScpConfigReader::LoadOpenAiConfig(config, strConfigError))
+    {
+        AfxMessageBox(strConfigError, MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    OPENAI_GENERATE_REQUEST request;
+    request.config = config;
+    request.strPdfPath = m_settings.strPdfPath;
+    request.bAllPages = m_settings.bAllPages;
+    request.nPageStart = m_settings.nPageStart;
+    request.nPageEnd = m_settings.nPageEnd;
+    request.nQuestionCount = m_settings.nQuestionCount;
+
+    StartQuestionGeneration(request);
 }
 
 void CQuizGenViewCtrl::OnBnClickedUse()
@@ -948,7 +1427,11 @@ void CQuizGenViewCtrl::SetGeneratedActionButtonsEnabled(BOOL bEnabled)
 void CQuizGenViewCtrl::SetChatGptTestBusy(BOOL bBusy)
 {
     m_bChatGptTestRunning = bBusy;
-    SetGeneratedActionButtonsEnabled(bBusy ? FALSE : TRUE);
+    const BOOL bAnyBusy = m_bChatGptTestRunning || m_bQuestionGenerateRunning;
+    SetGeneratedActionButtonsEnabled(bAnyBusy ? FALSE : TRUE);
+
+    if (::IsWindow(m_btnGenerate.GetSafeHwnd()))
+        m_btnGenerate.EnableWindow(bAnyBusy ? FALSE : TRUE);
 
     if (::IsWindow(m_staticChatGptProgress.GetSafeHwnd()))
     {
@@ -957,12 +1440,56 @@ void CQuizGenViewCtrl::SetChatGptTestBusy(BOOL bBusy)
             m_staticChatGptProgress.SetWindowText(L"ChatGPT 연동 시험 중입니다...");
             m_staticChatGptProgress.ShowWindow(SW_SHOW);
         }
-        else
+        else if (!m_bQuestionGenerateRunning)
         {
             m_staticChatGptProgress.SetWindowText(L"");
             m_staticChatGptProgress.ShowWindow(SW_HIDE);
         }
     }
+}
+
+void CQuizGenViewCtrl::SetQuestionGenerateBusy(BOOL bBusy)
+{
+    m_bQuestionGenerateRunning = bBusy;
+    const BOOL bAnyBusy = m_bChatGptTestRunning || m_bQuestionGenerateRunning;
+    SetGeneratedActionButtonsEnabled(bAnyBusy ? FALSE : TRUE);
+
+    if (::IsWindow(m_btnGenerate.GetSafeHwnd()))
+        m_btnGenerate.EnableWindow(bAnyBusy ? FALSE : TRUE);
+
+    if (::IsWindow(m_staticChatGptProgress.GetSafeHwnd()))
+    {
+        if (bBusy)
+        {
+            m_staticChatGptProgress.SetWindowText(L"ChatGPT로 문제를 생성하는 중입니다...");
+            m_staticChatGptProgress.ShowWindow(SW_SHOW);
+        }
+        else if (!m_bChatGptTestRunning)
+        {
+            m_staticChatGptProgress.SetWindowText(L"");
+            m_staticChatGptProgress.ShowWindow(SW_HIDE);
+        }
+    }
+}
+
+void CQuizGenViewCtrl::StartQuestionGeneration(const OPENAI_GENERATE_REQUEST& request)
+{
+    if (!::IsWindow(GetSafeHwnd()))
+        return;
+
+    SetQuestionGenerateBusy(TRUE);
+
+    const HWND hwnd = m_hWnd;
+    std::thread([hwnd, request]()
+    {
+        OPENAI_GENERATE_RESULT* pResult = new OPENAI_GENERATE_RESULT();
+        *pResult = OpenAiQuestionGenerator::Run(request);
+
+        if (::IsWindow(hwnd))
+            ::PostMessage(hwnd, WM_QUIZGEN_GENERATE_DONE, 0, reinterpret_cast<LPARAM>(pResult));
+        else
+            delete pResult;
+    }).detach();
 }
 
 void CQuizGenViewCtrl::StartChatGptConnectionTest(const SCP_OPENAI_CONFIG& config)
@@ -999,6 +1526,61 @@ void CQuizGenViewCtrl::OnBnClickedChatGpt()
     }
 
     StartChatGptConnectionTest(config);
+}
+
+LRESULT CQuizGenViewCtrl::OnQuestionGenerateDone(WPARAM /*wParam*/, LPARAM lParam)
+{
+    std::unique_ptr<OPENAI_GENERATE_RESULT> pResult(reinterpret_cast<OPENAI_GENERATE_RESULT*>(lParam));
+    SetQuestionGenerateBusy(FALSE);
+
+    if (pResult == nullptr)
+        return 0;
+
+    if (pResult->bSuccess)
+    {
+        m_TestQuestionList = std::move(pResult->questions);
+        m_nCurrentTestQuestion = 0;
+        m_bTestQuestionsLoaded = TRUE;
+        RefreshGeneratedList();
+        DisplayCurrentTestQuestion();
+        m_tabQuestion.SetCurSel(TAB_GENERATED);
+        ShowActiveTab();
+
+        CStringW strMsg;
+        strMsg.Format(
+            L"문제 생성 완료\r\n\r\n"
+            L"요청: %d개\r\n"
+            L"생성: %d개\r\n\r\n"
+            L"첫 번째 문제를 표시합니다.",
+            pResult->nRequestedCount,
+            static_cast<int>(m_TestQuestionList.size()));
+        AfxMessageBox(strMsg, MB_OK | MB_ICONINFORMATION);
+    }
+    else
+    {
+        CStringW strMsg;
+        strMsg.Format(
+            L"문제 생성 실패\r\n\r\n"
+            L"단계: %s\r\n"
+            L"HTTP 상태 코드: %d\r\n"
+            L"오류: %s",
+            OpenAiQuestionGenerator::StageToUserMessage(pResult->stage).GetString(),
+            pResult->nHttpStatus,
+            pResult->strErrorMessage.IsEmpty()
+                ? L"(없음)"
+                : pResult->strErrorMessage.GetString());
+
+        if (!pResult->strPossibleCause.IsEmpty())
+        {
+            strMsg += L"\r\n\r\n원인:\r\n";
+            strMsg += pResult->strPossibleCause;
+        }
+
+        strMsg += L"\r\n\r\n자세한 내용은 Log\\ErrorLog.txt 를 확인하세요.";
+        AfxMessageBox(strMsg, MB_OK | MB_ICONWARNING);
+    }
+
+    return 0;
 }
 
 LRESULT CQuizGenViewCtrl::OnChatGptTestDone(WPARAM /*wParam*/, LPARAM lParam)
@@ -1040,6 +1622,7 @@ void CQuizGenViewCtrl::OnBnClickedTest()
     if (!LoadTestQuestionFile())
         return;
 
+    RefreshGeneratedList();
     DisplayCurrentTestQuestion();
     m_tabQuestion.SetCurSel(TAB_GENERATED);
     ShowActiveTab();

@@ -34,6 +34,12 @@ ipch/
 *.lastbuildstate
 Cl.items.tlog
 
+# Local secrets and runtime logs (do not commit)
+Bin/SCP_Config.txt
+Bin/Log/
+Bin/logs/
+Bin/Config/SCP_UI_Settings.txt
+
 # Executables and libs (build from source)
 Bin/TrainingContentPlayer.exe
 Bin/TrainingContentPlayer.pdb
